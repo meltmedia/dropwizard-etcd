@@ -42,7 +42,7 @@ public class EtcdWatchServiceIT {
   @ClassRule
   public static EtcdClientRule clientRule = new EtcdClientRule("http://127.0.0.1:2379");
   @Rule
-  public static EtcdWatchServiceRule serviceRule = new EtcdWatchServiceRule(clientRule::getClient, BASE_PATH);
+  public EtcdWatchServiceRule serviceRule = new EtcdWatchServiceRule(clientRule::getClient, BASE_PATH);
   public static TypeReference<NodeData> NODE_DATA_TYPE = new TypeReference<NodeData>(){};
   
   public EtcdDirectoryDao<NodeData> jobsDao;

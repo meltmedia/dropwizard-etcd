@@ -17,6 +17,7 @@ package com.meltmedia.dropwizard.etcd.cluster;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.concurrent.Executors;
@@ -45,7 +46,7 @@ public class ClusterProcessorIT {
   public static EtcdClientRule etcdClientSupplier = new EtcdClientRule("http://127.0.0.1:2379");
   
   @Rule
-  public static EtcdJsonRule factoryRule = new EtcdJsonRule(etcdClientSupplier::getClient, "/test");
+  public EtcdJsonRule factoryRule = new EtcdJsonRule(etcdClientSupplier::getClient, "/test");
   
   ClusterProcessor<NodeData> service;
   ScheduledExecutorService executor;
@@ -102,7 +103,7 @@ public class ClusterProcessorIT {
   public void shouldStartWhenReassignedToThisNode() {
     dao.put("id", processNode("2", "name"));
 
-    verify(lifecycle, timeout(1000).never()).start();
+    verify(lifecycle, never()).start();
     
     dao.put("id", processNode("1", "name"));
     
