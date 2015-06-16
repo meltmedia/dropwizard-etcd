@@ -1,0 +1,8 @@
+target
+.classpath
+.project
+.settings
+.vagrant
+.DS_Store
+*.swp
+
