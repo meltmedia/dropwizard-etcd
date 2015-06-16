@@ -43,9 +43,9 @@ import com.meltmedia.dropwizard.etcd.EtcdConfiguration;
 ...
 
   @JsonProperty
-  protected EtcdConfiguration elasticsearch;
+  protected EtcdConfiguration etcd;
 
-  public EtcdConfiguration getElasticsearch() {
+  public EtcdConfiguration getEtcd() {
     return etcd;
   }
 ```
@@ -61,17 +61,17 @@ protected EtcdBundle etcdBundle;
 @Override
 public void initialize(Bootstrap<ExampleConfiguration> bootstrap) {
   bootstrap.addBundle(etcdBundle = EtcdBundle.<ExampleConfiguration>builder()
-    .withConfiguration(ExampleConfiguration::getElasticsearch)
+    .withConfiguration(ExampleConfiguration::getEtcd)
     .build());
 }
 ```
 
-Finally, use the bundle to access the client supplier.
+Finally, use the bundle to access the client.
 
 ```
 @Override
 public void run(ExampleConfiguration config, Environment env) throws Exception {
-  EtcdClient client = etcdBundle.getClientSupplier().get();
+  EtcdClient client = etcdBundle.getClient();
 }
 ```
 
@@ -82,8 +82,8 @@ Add the etcd configuraiton block to your applications config.
 ```
 etcd:
   urls:
-    - http://example.com:80
-  hostName: example.com
+    - http://localhost:2379
+  hostName: localhost
 ```
 
 ## Building
