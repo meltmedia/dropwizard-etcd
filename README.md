@@ -46,20 +46,9 @@ import com.meltmedia.dropwizard.etcd.EtcdConfiguration;
 
   @JsonProperty
   protected EtcdConfiguration etcd;
-  
-  @JsonProperty
-  protected String etcdDirectory;
 
   public EtcdConfiguration getEtcd() {
     return etcd;
-  }
-  
-  public String getEtcdDirectory() {
-    return etcdDirectory;
-  }
-  
-  public void setEtcdDirectory( String etcdDirectory  ) {
-    this.etcdDirectory = etcdDirectory;
   }
 ```
 
@@ -78,24 +67,12 @@ Then include the bundle in the `initialize` method of your application.
 import com.meltmedia.dropwizard.etcd.EtcdBundle;
 
 ...
-protected EtcdBundle etcdBundle;         // the basic bundle that supplies the client
-protected EtcdJsonBundle etcdJsonBundle; // adds support for JSON values in etcd
-protected ClusterBundle clusterBundle;   // adds support for clustered processing
-protected ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(10);
+protected EtcdBundle etcdBundle;
 
 @Override
 public void initialize(Bootstrap<ExampleConfiguration> bootstrap) {
   bootstrap.addBundle(etcdBundle = EtcdBundle.<ExampleConfiguration>builder()
     .withConfiguration(ExampleConfiguration::getEtcd)
-    .build());
-  bootstrap.addBundle(etcdJsonBundle = EtcdJsonBundle.<ExampleConfiguration>builder()
-    .withClient(etcdBundle::getClient)
-    .withExecutor(()->{return executor;})
-    .withDirectory(ExampleConfiguration::getEtcdDirectory)
-    .build());
-  bootstrap.addBundle(clusterBundle = ClusterBundle.<ExampleConfiguration>builder()
-    .withExecutorSupplier(()->{return executor;})
-    .withFactorySupplier(etcdJsonBundle::getFactory)
     .build());
 }
 ```
