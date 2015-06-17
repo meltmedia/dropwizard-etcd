@@ -33,9 +33,11 @@ You will also need to include the project in your dependencies.
 </dependency>
 ```
 
-### Java
+### Client Bundle
 
-Define the EtcdConfiguraion class somewhere in your applications configuration.
+To simply get access to a client for Etcd, you will need to set up the `EtcdBundle`.
+
+First, define the EtcdConfiguraion class somewhere in your applications configuration.
 
 ```
 import com.meltmedia.dropwizard.etcd.EtcdConfiguration;
@@ -59,6 +61,15 @@ import com.meltmedia.dropwizard.etcd.EtcdConfiguration;
   public void setEtcdDirectory( String etcdDirectory  ) {
     this.etcdDirectory = etcdDirectory;
   }
+```
+
+and add configuration for the client to your configuration
+
+```
+etcd:
+  urls:
+    - http://localhost:2379
+  hostName: localhost
 ```
 
 Then include the bundle in the `initialize` method of your application.
@@ -89,7 +100,7 @@ public void initialize(Bootstrap<ExampleConfiguration> bootstrap) {
 }
 ```
 
-Finally, use the bundle to access the client.
+and access the client in your run command.
 
 ```
 @Override
@@ -98,15 +109,96 @@ public void run(ExampleConfiguration config, Environment env) throws Exception {
 }
 ```
 
-### Configuration
 
-Add the etcd configuraiton block to your applications config.
+### Json Factory Bundle
+
+If you want to get support for dealing with Etcd values as JSON, then you can additionally configure the `EtcdJsonBundle`.
+
+First, define the root etcd directory for your application somewhere in your configuration
 
 ```
-etcd:
-  urls:
-    - http://localhost:2379
-  hostName: localhost
+  @JsonProperty
+  protected String etcdDirectory;
+  
+  public String getEtcdDirectory() {
+    return etcdDirectory;
+  }
+  
+  public void setEtcdDirectory( String etcdDirectory  ) {
+    this.etcdDirectory = etcdDirectory;
+  }
+```
+
+and add the directory to your configuration
+
+```
+etcdDirectory: /example-app
+```
+
+Then include the bundle in the `initialize` method of your application.  Initialization will require a `ScheduledExecutorService` to be defined.
+
+```
+import com.meltmedia.dropwizard.etcd.EtcdJsonBundle;
+import java.util.concurrent.ScheduledExecutorService;
+
+...
+protected EtcdJsonBundle etcdJsonBundle;
+protected ScheduledExecutorService executor;
+
+@Override
+public void initialize(Bootstrap<ExampleConfiguration> bootstrap) {
+  ...
+  bootstrap.addBundle(etcdJsonBundle = EtcdJsonBundle.<ExampleConfiguration>builder()
+    .withClient(etcdBundle::getClient)
+    .withExecutor(()->{return executor;})
+    .withDirectory(ExampleConfiguration::getEtcdDirectory)
+    .build());
+}
+```
+
+Then you can create DAOs, add watches and start heartbeats on Etcd.
+
+```
+@Override
+public void run(ExampleConfiguration config, Environment env) throws Exception {
+  EtcdJson factory = etcdJsonBundle.getFactory();
+  
+  // get a handle to a directory.
+  MappedEtcdDirectory directory = factory.newDirectory("/dir", new TypeReference<MyType>(){});
+}
+```
+
+## Cluster Bundle
+
+The cluster bundle supports running processes across multiple instances of your application.  It requires the
+`EtcdJsonBundle` to also be installed.
+
+You will need to add the bundle to your `initialize` method
+
+```
+import com.meltmedia.dropwizard.etcd.cluster.ClusterBundle;
+
+...
+protected ClusterBundle clusterBundle;
+protected ScheduledExecutorService executor;
+
+@Override
+public void initialize(Bootstrap<ExampleConfiguration> bootstrap) {
+  ...
+  bootstrap.addBundle(clusterBundle = ClusterBundle.<ExampleConfiguration>builder()
+    .withExecutorSupplier(()->{return executor;})
+    .withFactorySupplier(etcdJsonBundle::getFactory)
+    .build());
+}
+```
+
+then you can define processes that will be distibuted evenly among cluster members.
+
+```
+@Override
+public void run(ExampleConfiguration config, Environment env) throws Exception {
+  ClusterService clusterService = clusterBundle.getService();
+}
 ```
 
 ## Building
