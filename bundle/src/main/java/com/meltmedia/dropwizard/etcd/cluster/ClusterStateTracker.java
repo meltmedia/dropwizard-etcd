@@ -15,6 +15,7 @@
  */
 package com.meltmedia.dropwizard.etcd.cluster;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.SortedSet;
@@ -121,6 +122,10 @@ public class ClusterStateTracker {
 
     public int memberCount() {
       return members.size();
+    }
+    
+    public SortedSet<ClusterNode> getMembers() {
+      return Collections.unmodifiableSortedSet(members);
     }
 
     public boolean hasMember( String nodeId ) {

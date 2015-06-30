@@ -1,0 +1,21 @@
+logging:
+  level: INFO
+  loggers:
+    'com.meltmedia.dropwizard.etcd': INFO
+  appenders:
+    - type: 'console'
+
+server:
+  applicationConnectors:
+  - type: http 
+    port: 8180
+  adminConnectors:
+  - type: http
+    port: 8181
+  shutdownGracePeriod: 2s
+
+etcd:
+  urls:
+    - http://localhost:2379
+
+etcdDirectory: /example-app
