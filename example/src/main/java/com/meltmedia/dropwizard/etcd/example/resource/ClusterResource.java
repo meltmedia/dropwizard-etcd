@@ -32,13 +32,13 @@ import com.meltmedia.dropwizard.etcd.cluster.ClusterService;
 public class ClusterResource {
   @Inject
   Supplier<ClusterService> cluster;
-  
+
   @GET
   @Produces("application/json")
   public ClusterNode root() {
     return cluster.get().getThisNode();
   }
-  
+
   @GET
   @Path("/members")
   @Produces("application/json")

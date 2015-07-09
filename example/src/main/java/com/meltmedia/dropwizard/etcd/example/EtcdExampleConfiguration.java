@@ -26,7 +26,7 @@ import com.meltmedia.dropwizard.etcd.EtcdConfiguration;
 public class EtcdExampleConfiguration extends Configuration {
   @NotNull
   EtcdConfiguration etcd = new EtcdConfiguration();
-  
+
   @NotEmpty
   String etcdDirectory;
 
@@ -34,7 +34,7 @@ public class EtcdExampleConfiguration extends Configuration {
     return etcd;
   }
 
-  public void setEtcd( EtcdConfiguration etcd ) {
+  public void setEtcd(EtcdConfiguration etcd) {
     this.etcd = etcd;
   }
 
@@ -42,7 +42,7 @@ public class EtcdExampleConfiguration extends Configuration {
     return etcdDirectory;
   }
 
-  public void setEtcdDirectory( String etcdDirectory ) {
+  public void setEtcdDirectory(String etcdDirectory) {
     this.etcdDirectory = etcdDirectory;
   }
 }

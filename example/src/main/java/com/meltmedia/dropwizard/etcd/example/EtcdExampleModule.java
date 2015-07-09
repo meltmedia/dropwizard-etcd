@@ -28,11 +28,11 @@ public class EtcdExampleModule extends AbstractModule {
   @Override
   protected void configure() {
   }
-  
+
   @Provides
   @Singleton
   @Named("hello")
-  public EtcdDirectoryDao<ClusterProcess> provideHelloDao( HelloProcessor processor ) {
+  public EtcdDirectoryDao<ClusterProcess> provideHelloDao(HelloProcessor processor) {
     return processor.getProcessService().getDirectory().newDao();
   }
 

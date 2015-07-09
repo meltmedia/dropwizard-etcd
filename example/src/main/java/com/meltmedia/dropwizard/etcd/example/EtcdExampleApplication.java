@@ -68,39 +68,37 @@ public class EtcdExampleApplication extends Application<EtcdExampleConfiguration
     executor = Executors.newScheduledThreadPool(10);
 
     // provides a client to the application.
-    bootstrap.addBundle(etcdBundle = EtcdBundle.<EtcdExampleConfiguration>builder()
-      .withConfiguration(EtcdExampleConfiguration::getEtcd)
-      .build());
-    
+    bootstrap.addBundle(etcdBundle =
+        EtcdBundle.<EtcdExampleConfiguration> builder()
+            .withConfiguration(EtcdExampleConfiguration::getEtcd).build());
+
     // provides access to Etcd as a JSON store using Jackson.
     // requires the client bundle to operate.
-    bootstrap.addBundle(etcdJsonBundle = EtcdJsonBundle.<EtcdExampleConfiguration>builder()
-      .withClient(etcdBundle::getClient)
-      .withDirectory(EtcdExampleConfiguration::getEtcdDirectory)
-      .withExecutor(()->executor)
-      .build());
-    
+    bootstrap.addBundle(etcdJsonBundle =
+        EtcdJsonBundle.<EtcdExampleConfiguration> builder().withClient(etcdBundle::getClient)
+            .withDirectory(EtcdExampleConfiguration::getEtcdDirectory).withExecutor(() -> executor)
+            .build());
+
     // provides services for clustering jobs with Etcd.
     // requires the JSON bundle to operate.
-    bootstrap.addBundle(etcdClusterBundle = ClusterBundle.<EtcdExampleConfiguration>builder()
-      .withExecutorSupplier(()->executor)
-      .withFactorySupplier(etcdJsonBundle::getFactory)
-      .build());
-    
+    bootstrap.addBundle(etcdClusterBundle =
+        ClusterBundle.<EtcdExampleConfiguration> builder().withExecutorSupplier(() -> executor)
+            .withFactorySupplier(etcdJsonBundle::getFactory).build());
+
     GuiceBundle.Builder<EtcdExampleConfiguration> builder =
         GuiceBundle.<EtcdExampleConfiguration> newBuilder()
             .setConfigClass(EtcdExampleConfiguration.class)
             .enableAutoConfig(getClass().getPackage().getName());
-    
+
     // these Guice modules provide injections for the etcd bundles.
     builder.addModule(new EtcdModule(etcdBundle));
     builder.addModule(new EtcdJsonModule(etcdJsonBundle));
     builder.addModule(new ClusterModule(etcdClusterBundle));
-    
+
     builder.addModule(new EtcdExampleModule());
 
     bootstrap.addBundle(guiceBundle = builder.build(Stage.DEVELOPMENT));
-    
+
     bootstrap.addCommand(new Commands.AddCommand());
     bootstrap.addCommand(new Commands.RemoveCommand());
     bootstrap.addCommand(new Commands.ListCommand());
@@ -109,16 +107,16 @@ public class EtcdExampleApplication extends Application<EtcdExampleConfiguration
   @Override
   public void run(EtcdExampleConfiguration configuration, Environment environment) throws Exception {
     configureMapper(environment.getObjectMapper());
-    environment.lifecycle().manage(new ExecutorServiceManager(executor, Duration.milliseconds(100), "etcd-threads"));
+    environment.lifecycle().manage(
+        new ExecutorServiceManager(executor, Duration.milliseconds(100), "etcd-threads"));
     Injector injector = guiceBundle.getInjector();
     environment.jersey().register(injector.getInstance(ClusterResource.class));
   }
-  
+
   public void configureMapper(ObjectMapper mapper) {
-    mapper
-    .registerModule(new JodaModule())
-    .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-    .configure(SerializationFeature.INDENT_OUTPUT, true);
+    mapper.registerModule(new JodaModule())
+        .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+        .configure(SerializationFeature.INDENT_OUTPUT, true);
 
   }
 }
