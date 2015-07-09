@@ -169,7 +169,7 @@ public void initialize(Bootstrap<ExampleConfiguration> bootstrap) {
 }
 ```
 
-then you can define processes that will be distibuted evenly among cluster members.
+then you can get access to the cluster service from the bundle.
 
 ```
 @Override
@@ -177,6 +177,8 @@ public void run(ExampleConfiguration config, Environment env) throws Exception {
   ClusterService clusterService = clusterBundle.getService();
 }
 ```
+
+There is an example of using this service in [the example project](example/src/main/java/com/meltmedia/dropwizard/etcd/example/HelloProcessor.java).
 
 ## Building
 
