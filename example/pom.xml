@@ -33,6 +33,7 @@
   <properties>
     <application.name>etcd-example</application.name>
     <application.class>com.meltmedia.dropwizard.etcd.example.EtcdExampleApplication</application.class>
+    <maven.deploy.skip>true</maven.deploy.skip>
   </properties>
 
   <dependencyManagement>
