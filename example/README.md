@@ -89,4 +89,4 @@ If we remove one of these names, we will see the nodes rebalance and move one of
 ./target/etcd-example remove http://localhost:8080 Camille
 ```
 
-That is it for this example application.  Check out [HelloProcessor](./src/main/java/com/meltmedia/dropwizard/etcd/example/HelloProcessor) for the code that makes this example work.
+That is it for this example application.  Check out [HelloProcessor](./src/main/java/com/meltmedia/dropwizard/etcd/example/HelloProcessor.java) for the code that makes this example work.
