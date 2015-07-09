@@ -13,36 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.meltmedia.dropwizard.etcd.json;
+package com.meltmedia.dropwizard.etcd.example;
 
-import java.util.function.Supplier;
-
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
+import com.meltmedia.dropwizard.etcd.cluster.ClusterProcess;
+import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
 
-public class EtcdJsonModule extends AbstractModule {
-  
-  private EtcdJsonBundle<?> bundle;
-
-  public EtcdJsonModule( EtcdJsonBundle<?> bundle ) {
-    this.bundle = bundle;
-  }
+public class EtcdExampleModule extends AbstractModule {
 
   @Override
-  protected void configure() {}
-  
-  @Singleton
-  @Provides
-  public Supplier<EtcdJson> provideFactorySupplier() {
-    return bundle::getFactory;
+  protected void configure() {
   }
 
-  @Singleton
   @Provides
-  public EtcdJson provideFactory() {
-    return bundle.getFactory();
+  @Singleton
+  @Named("hello")
+  public EtcdDirectoryDao<ClusterProcess> provideHelloDao(HelloProcessor processor) {
+    return processor.getProcessService().getDirectory().newDao();
   }
 
 }

@@ -30,7 +30,7 @@ import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
 
 /**
- * Starts streams based on the state of etcd.
+ * Clusters processors using an Etcd directory to store process configuration.
  * 
  * @author Christian Trimble
  */

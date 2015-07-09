@@ -159,6 +159,7 @@ public class ClusterService {
 
     private ClusterAssignmentService assignments;
     private ClusterProcessor<C> processor;
+    private MappedEtcdDirectory<ClusterProcess> directory;
 
     public ProcessService( ClusterNode thisNode , ClusterStateTracker stateTracker , ScheduledExecutorService executor , MappedEtcdDirectory<ClusterProcess> directory, Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type, ObjectMapper mapper ) {
       this.assignments = ClusterAssignmentService.builder()
@@ -174,6 +175,7 @@ public class ClusterService {
         .withNodeId(thisNode.getId())
         .withMapper(mapper)
         .build();
+      this.directory = directory;
     }
     
     public void start() {
@@ -185,7 +187,10 @@ public class ClusterService {
       assignments.stop();
       processor.stop();  
     }
-
+    
+    public MappedEtcdDirectory<ClusterProcess> getDirectory() {
+      return directory;
+    }
   }
 
   public ClusterNode getThisNode() {
