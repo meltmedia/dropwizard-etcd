@@ -28,7 +28,7 @@
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>Dropwizard Etcd Parent</name>
-  <description>A Dropwizard Bundle for accessing Elasticsearch.</description>
+  <description>A Dropwizard Bundle for accessing Etcd.</description>
   <url>http://github.com/meltmedia/dropwizard-etcd</url>
   <inceptionYear>2015</inceptionYear>
   <ciManagement>
@@ -49,7 +49,6 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <io.dropwizard.version>0.7.1</io.dropwizard.version>
     <etcd.version>0.1.5</etcd.version>
-    <elasticsearch.version>1.4.2</elasticsearch.version>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
   </properties>
