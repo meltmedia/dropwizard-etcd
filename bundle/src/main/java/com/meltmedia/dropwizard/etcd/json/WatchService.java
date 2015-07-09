@@ -114,16 +114,16 @@ public class WatchService {
   
   
   public void start() {
-    logger.info("starting watch for {}", directory);
+    logger.debug("starting watch for {}", directory);
     ensureDirectoryExists();
     startWatchingNodes();
-    logger.info("started watch for {}", directory);
+    logger.debug("started watch for {}", directory);
   }
   
   public void stop() {
-    logger.info("stopping watch for {}", directory);
+    logger.debug("stopping watch for {}", directory);
     stopWatchingNodes();
-    logger.info("stopped watch for {}", directory);
+    logger.debug("stopped watch for {}", directory);
   }
   
   ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
@@ -332,7 +332,6 @@ public class WatchService {
               T value = readValue(mapper, node, type);
 
               if( value != null ) {
-                //currentIndex = Math.max(currentIndex, node.modifiedIndex);
                 fireEvent(handler, EtcdEvent.<T> builder()
                   .withType(EtcdEvent.Type.added)
                   .withValue(value)
@@ -452,7 +451,6 @@ public class WatchService {
     catch( Exception e ) {  
       throw new EtcdDirectoryException(String.format("could not create directory %s", directory), e);
     }
-    //}
   }
   
   static String key( EtcdKeysResponse response ) {

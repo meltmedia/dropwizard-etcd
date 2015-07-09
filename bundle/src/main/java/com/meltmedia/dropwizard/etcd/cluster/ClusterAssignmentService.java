@@ -155,8 +155,7 @@ public class ClusterAssignmentService {
       
       int maxProcessCount = currentNodeCount == 0 ? 0 : IntMath.divide(total, currentNodeCount, RoundingMode.CEILING);
       
-      //System.out.printf("Node %s processCount %d minProcessCount %d maxProcessCount %d%n", thisNode.getId(), processCount, minProcessCount, maxProcessCount);
-      logger.debug("Empty nodes on "+thisNode.getId()+" "+unassigned);
+      logger.debug("empty nodes on {} {}", thisNode.getId(), unassigned);
 
       if( processCount < maxProcessCount && !unassigned.isEmpty() ) {
         for( String toAssign : unassigned ) {
@@ -213,7 +212,7 @@ public class ClusterAssignmentService {
       cleanupFuture.cancel(true);
     }
     catch( Exception e ) {
-      logger.info("error thrown while stoping cleanup task");
+      logger.warn("error thrown while stoping cleanup task");
     }
     cleanupFuture = null;
   }
@@ -236,7 +235,7 @@ public class ClusterAssignmentService {
       assignmentFuture.cancel(true);
     }
     catch( Exception e ) {
-      logger.info("error thrown while stoping assignment task");
+      logger.warn("error thrown while stoping assignment task");
     }
     assignmentFuture = null;
   }
@@ -249,7 +248,7 @@ public class ClusterAssignmentService {
           processDao.update(processKey, process->thisNode.getId().equals(process.getAssignedTo()), process->process.withAssignedTo(null));
         }
         catch( Exception e ) {
-          logger.warn("Could not unassign process {}", processKey);
+          logger.warn("could not unassign process {}", processKey);
         }
       });
   }
@@ -276,7 +275,7 @@ public class ClusterAssignmentService {
     }
     else {
       if( unassigned.contains(key)) {
-        logger.warn("Key {} already unassigned");
+        logger.warn("key {} already unassigned", key);
       }
       unassigned.add(key);
     }
@@ -302,7 +301,7 @@ public class ClusterAssignmentService {
     else {
       logger.debug("removing key {}", key);
       if( !unassigned.remove(key) ) {
-        logger.warn("key removed but not present"); 
+        logger.warn("key {} removed but not present", key); 
       }
     }
   }

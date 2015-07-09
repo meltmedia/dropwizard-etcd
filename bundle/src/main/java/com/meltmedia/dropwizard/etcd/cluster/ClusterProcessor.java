@@ -99,18 +99,18 @@ public class ClusterProcessor<C> {
   }
   
   public void stop() {
-    logger.info("stopping watch");
+    logger.debug("stopping watch");
     watch.stop();
-    logger.info("stopped watch");
+    logger.debug("stopped watch");
     
     lifecycles.values().stream().forEach(lifecycle->{
       try {
-        logger.info("stopping lifecycle");
+        logger.debug("stopping lifecycle");
         lifecycle.stop();
-        logger.info("stopped lifecycle");
+        logger.debug("stopped lifecycle");
       }
       catch( Exception e ) {
-        logger.warn("execption encountered while stopping processor.", e);
+        logger.warn("execption encountered while stopping processor", e);
       }
     });
     lifecycles.clear();
