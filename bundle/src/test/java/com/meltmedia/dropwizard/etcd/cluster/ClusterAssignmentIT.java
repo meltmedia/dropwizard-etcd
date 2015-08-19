@@ -176,6 +176,34 @@ public class ClusterAssignmentIT {
     service1.stop();
     clusterService1.stop();
   }
+
+  @Test
+  public void shouldAssignMultipleWithOneNode() throws InterruptedException {
+    clusterService1.start();
+    service1.start();
+    
+    dao.put("id1", processNode(null, "name1"));
+    dao.put("id2", processNode(null, "name2"));
+    
+    assertState("job assigned", s->s.assignments("node1")==2);
+    
+    service1.stop();
+    clusterService1.stop();
+  }
+
+  @Test
+  public void shouldAssignExistingBrokenNodes() throws InterruptedException {  
+    dao.put("id1", processNode(null, "name1").withAssignedTo("junk"));
+    dao.put("id2", processNode(null, "name2").withAssignedTo("moreJunk"));
+    
+    clusterService1.start();
+    service1.start();
+    
+    assertState("job assigned", s->s.assignments("node1")==2, 20, TimeUnit.SECONDS);
+    
+    service1.stop();
+    clusterService1.stop();
+  }
   
   @Test
   public void shouldAllowRestart() throws InterruptedException {
@@ -244,6 +272,12 @@ public class ClusterAssignmentIT {
     assertThat(message, latchFactory
       .newLatch(message, test)
       .await(10, TimeUnit.SECONDS), equalTo(true));
+  }
+  
+  private void assertState(String message, Predicate<AssignmentState> test, long duration, TimeUnit unit ) throws InterruptedException {
+    assertThat(message, latchFactory
+      .newLatch(message, test)
+      .await(duration, unit), equalTo(true));
   }
   
   @Test

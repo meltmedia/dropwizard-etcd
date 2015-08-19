@@ -26,10 +26,9 @@ import net.sourceforge.argparse4j.inf.Subparser;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterProcess;
-import com.sun.jersey.api.client.Client;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.GenericType;
-import com.sun.jersey.api.client.WebResource;
+import javax.ws.rs.client.*;
+import javax.ws.rs.core.GenericType;
+import javax.ws.rs.core.Response;
 
 public class Commands {
   public static class AddCommand extends Command {
@@ -49,14 +48,14 @@ public class Commands {
       URI host = URI.create(namespace.getString("endpoint"));
       String name = namespace.getString("name");
 
-      ClientResponse response =
-          Client
-              .create()
-              .resource(host)
+      Response response =
+          ClientBuilder
+              .newClient()
+              .target(host)
               .path("hello")
-              .entity(
-                  new ClusterProcess().withConfiguration(JsonNodeFactory.instance.objectNode().put(
-                      "name", name)), "application/json").post(ClientResponse.class);
+              .request()
+              .post(Entity.json(new ClusterProcess().withConfiguration(JsonNodeFactory.instance.objectNode().put(
+                      "name", name))));
 
       if (response.getStatus() != 201) {
         System.err.printf("unexpected status code %d%n", response.getStatus());
@@ -84,10 +83,10 @@ public class Commands {
       URI host = URI.create(namespace.getString("endpoint"));
       String name = namespace.getString("name");
 
-      WebResource helloResource = Client.create().resource(host).path("hello");
+      WebTarget helloResource = ClientBuilder.newClient().target(host).path("hello");
 
       // lookup process uri.
-      ClientResponse response = helloResource.queryParam("name", name).get(ClientResponse.class);
+      Response response = helloResource.queryParam("name", name).request().get();
 
       if (response.getStatus() != 200) {
         System.err.printf("unexpected status code %d finding process%n", response.getStatus());
@@ -95,8 +94,7 @@ public class Commands {
       }
 
       List<ClusterProcess> processList =
-          response.getEntity(new GenericType<List<ClusterProcess>>() {
-          });
+          response.readEntity(new GenericType<List<ClusterProcess>>(){});
 
       if (processList.size() == 0) {
         System.err.println("not found");
@@ -105,7 +103,7 @@ public class Commands {
 
       String id = (String) processList.get(0).getAdditionalProperties().get("id");
 
-      ClientResponse delete = helloResource.path(id).delete(ClientResponse.class);
+      Response delete = helloResource.path(id).request().delete();
 
       if (delete.getStatus() != 204) {
         System.err.printf("unexpected status code %d deleting process %s%n", response.getStatus(),
@@ -133,16 +131,16 @@ public class Commands {
     public void run(Bootstrap<?> bootstrap, Namespace namespace) throws Exception {
       URI host = URI.create(namespace.getString("endpoint"));
 
-      WebResource helloResource = Client.create().resource(host).path("hello");
+      WebTarget helloResource = ClientBuilder.newClient().target(host).path("hello");
 
-      ClientResponse response = helloResource.accept("application/json").get(ClientResponse.class);
+      Response response = helloResource.request().accept("application/json").get();
 
       if (response.getStatus() != 200) {
         System.err.printf("unexpected status code %d%n", response.getStatus());
         System.exit(1);
       }
 
-      response.getEntity(new GenericType<List<ClusterProcess>>() {
+      response.readEntity(new GenericType<List<ClusterProcess>>() {
       }).stream().map(process -> process.getConfiguration().get("name"))
           .forEach(System.out::println);
 

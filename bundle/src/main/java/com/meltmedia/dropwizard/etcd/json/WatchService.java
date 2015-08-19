@@ -187,12 +187,12 @@ public class WatchService {
 
       try {
 
-        long nextIndex = write(( ) -> watchIndex.incrementAndGet());
+        long nextIndex = write((Callable<Long>)( ) -> watchIndex.incrementAndGet());
         // get the next event.
         EtcdKeysResponse response = client.get()
           .getDir(directory)
           .recursive()
-          .waitForChange(read(( ) -> watchIndex.get()))
+          .waitForChange(read((Callable<Long>)( ) -> watchIndex.get()))
           .timeout(30, TimeUnit.SECONDS)
           .send()
           .get();
