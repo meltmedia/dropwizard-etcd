@@ -29,67 +29,60 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
 
 public class EtcdWatchServiceRule implements TestRule {
-  
+
   private Supplier<EtcdClient> clientSupplier;
   private String directory;
   private WatchService service;
 
-  public EtcdWatchServiceRule( Supplier<EtcdClient> clientSupplier, String directory) {
+  public EtcdWatchServiceRule(Supplier<EtcdClient> clientSupplier, String directory) {
     this.clientSupplier = clientSupplier;
     this.directory = directory;
   }
 
   @Override
-  public Statement apply( Statement base, Description description ) {
+  public Statement apply(Statement base, Description description) {
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         ObjectMapper mapper = new ObjectMapper();
-        
+
         try {
           try {
             clientSupplier.get().deleteDir(directory).recursive().send().get();
-          }
-          catch( Exception e ) {
+          } catch (Exception e) {
             System.out.printf("could not delete %s from service rule", directory);
             e.printStackTrace();
           }
-          
-        service = WatchService.builder()
-          .withEtcdClient(clientSupplier)
-          .withDirectory(directory)
-          .withExecutor(executor)
-          .withMapper(mapper)
-          .build();
-        
-        service.start();
-        
-        try {
-          
-          base.evaluate();
-        }
-        finally {
+
+          service =
+            WatchService.builder().withEtcdClient(clientSupplier).withDirectory(directory)
+              .withExecutor(executor).withMapper(mapper).build();
+
+          service.start();
+
           try {
-            service.stop();
+
+            base.evaluate();
+          } finally {
+            try {
+              service.stop();
+            } catch (Throwable ioe) {
+              ioe.printStackTrace(System.err);
+            }
+            service = null;
           }
-          catch( Throwable ioe ) {
-            ioe.printStackTrace(System.err);
-          }
-          service = null;
-        }
-        }
-        catch( Exception e ) {
+        } catch (Exception e) {
           e.printStackTrace();
           throw e;
         } finally {
           executor.shutdown();
         }
-        
+
       }
     };
   }
-  
+
   public WatchService getService() {
     return service;
   }

@@ -23,16 +23,17 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 
 public class EtcdJsonModule extends AbstractModule {
-  
+
   private EtcdJsonBundle<?> bundle;
 
-  public EtcdJsonModule( EtcdJsonBundle<?> bundle ) {
+  public EtcdJsonModule(EtcdJsonBundle<?> bundle) {
     this.bundle = bundle;
   }
 
   @Override
-  protected void configure() {}
-  
+  protected void configure() {
+  }
+
   @Singleton
   @Provides
   public Supplier<EtcdJson> provideFactorySupplier() {

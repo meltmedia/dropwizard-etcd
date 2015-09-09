@@ -27,36 +27,33 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 public class EtcdClientRule implements TestRule {
-  
+
   String uri;
   EtcdClient client;
 
-  public EtcdClientRule( String uri ) {
+  public EtcdClientRule(String uri) {
     this.uri = uri;
   }
-  
+
   @Override
-  public Statement apply( final Statement base, final Description description ) {
+  public Statement apply(final Statement base, final Description description) {
     return new Statement() {
       @Override
       public void evaluate() throws Throwable {
         URI serverUri = URI.create(uri);
-        EtcdNettyConfig config = new EtcdNettyConfig()
-        .setHostName(serverUri.getHost());
-        
-        client =  new EtcdClient(new EtcdNettyClient(config, null, new URI[] {serverUri}));
-        
+        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(serverUri.getHost());
+
+        client = new EtcdClient(new EtcdNettyClient(config, null, new URI[] { serverUri }));
+
         try {
           base.evaluate();
-        }
-        finally {
-          if( client != null ) {
-          try {
-            client.close();
-          }
-          catch( IOException ioe ) {
-            ioe.printStackTrace(System.err);
-          }
+        } finally {
+          if (client != null) {
+            try {
+              client.close();
+            } catch (IOException ioe) {
+              ioe.printStackTrace(System.err);
+            }
           }
           client = null;
         }

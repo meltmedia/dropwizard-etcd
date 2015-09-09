@@ -18,24 +18,25 @@ package com.meltmedia.dropwizard.etcd.json;
 public class EtcdDirectoryException extends RuntimeException {
 
   private static final long serialVersionUID = 1L;
-  
+
   public EtcdDirectoryException() {
     super();
   }
 
-  public EtcdDirectoryException( String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace ) {
+  public EtcdDirectoryException(String message, Throwable cause, boolean enableSuppression,
+    boolean writableStackTrace) {
     super(message, cause, enableSuppression, writableStackTrace);
   }
 
-  public EtcdDirectoryException( String message, Throwable cause ) {
+  public EtcdDirectoryException(String message, Throwable cause) {
     super(message, cause);
   }
 
-  public EtcdDirectoryException( String message ) {
+  public EtcdDirectoryException(String message) {
     super(message);
   }
 
-  public EtcdDirectoryException( Throwable cause ) {
+  public EtcdDirectoryException(Throwable cause) {
     super(cause);
   }
 }

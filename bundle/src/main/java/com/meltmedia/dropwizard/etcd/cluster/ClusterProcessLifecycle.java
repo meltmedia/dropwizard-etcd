@@ -17,5 +17,6 @@ package com.meltmedia.dropwizard.etcd.cluster;
 
 public interface ClusterProcessLifecycle {
   public void start();
+
   public void stop();
 }

@@ -31,56 +31,55 @@ public class EtcdJsonBundle<C extends Configuration> implements ConfiguredBundle
     private Supplier<ScheduledExecutorService> executor;
     private Function<C, String> directoryAccessor;
 
-    public Builder<C> withClient( Supplier<EtcdClient> client ) {
+    public Builder<C> withClient(Supplier<EtcdClient> client) {
       this.client = client;
       return this;
     }
-    
-    public Builder<C> withExecutor( Supplier<ScheduledExecutorService> executor ) {
+
+    public Builder<C> withExecutor(Supplier<ScheduledExecutorService> executor) {
       this.executor = executor;
       return this;
     }
-    
-    public Builder<C> withDirectory( Function<C, String> directoryAccessor ) {
+
+    public Builder<C> withDirectory(Function<C, String> directoryAccessor) {
       this.directoryAccessor = directoryAccessor;
       return this;
     }
-    
+
     public EtcdJsonBundle<C> build() {
       return new EtcdJsonBundle<C>(client, executor, directoryAccessor);
     }
   }
-  
+
   public static <C extends Configuration> Builder<C> builder() {
     return new Builder<C>();
   }
-  
+
   Supplier<EtcdClient> clientSupplier;
   EtcdJson factory;
   private Supplier<ScheduledExecutorService> executor;
   private Function<C, String> directoryAccessor;
 
-  public EtcdJsonBundle( Supplier<EtcdClient> client, Supplier<ScheduledExecutorService> executor, Function<C, String> directoryAccessor ) {
+  public EtcdJsonBundle(Supplier<EtcdClient> client, Supplier<ScheduledExecutorService> executor,
+    Function<C, String> directoryAccessor) {
     this.clientSupplier = client;
     this.executor = executor;
     this.directoryAccessor = directoryAccessor;
   }
 
   @Override
-  public void initialize( Bootstrap<?> bootstrap ) {
+  public void initialize(Bootstrap<?> bootstrap) {
   }
 
   @Override
-  public void run( C configuration, Environment environment ) throws Exception {
-    factory = EtcdJson.builder()
-      .withClient(clientSupplier)
-      .withExecutor(executor.get())
-      .withBaseDirectory(directoryAccessor.apply(configuration))
-      .withMapper(environment.getObjectMapper())
-      .build();
+  public void run(C configuration, Environment environment) throws Exception {
+    factory =
+      EtcdJson.builder().withClient(clientSupplier).withExecutor(executor.get())
+        .withBaseDirectory(directoryAccessor.apply(configuration))
+        .withMapper(environment.getObjectMapper()).build();
     environment.lifecycle().manage(new EtcdJsonManager(factory));
   }
-  
+
   public EtcdJson getFactory() {
     return this.factory;
   }

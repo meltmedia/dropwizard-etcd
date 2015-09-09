@@ -36,19 +36,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * @param <T> the type of the values in this directory.
  */
 public class EtcdDirectoryDao<T> {
- 
+
   ObjectMapper mapper;
   Supplier<EtcdClient> clientSupplier;
   TypeReference<T> type;
   String directory;
-  
-  public EtcdDirectoryDao( Supplier<EtcdClient> clientSupplier, String directory, ObjectMapper mapper, TypeReference<T> type) {
+
+  public EtcdDirectoryDao(Supplier<EtcdClient> clientSupplier, String directory,
+    ObjectMapper mapper, TypeReference<T> type) {
     this.clientSupplier = clientSupplier;
     this.mapper = mapper;
     this.type = type;
     this.directory = directory;
   }
-  
+
   /**
    * Puts a value into the directory and returns the etcd index of the value.  The key should not start with the '/' character.
    * 
@@ -56,15 +57,15 @@ public class EtcdDirectoryDao<T> {
    * @param entry
    * @return
    */
-  public Long put( String key, T entry ) {
+  public Long put(String key, T entry) {
     try {
-      return clientSupplier.get().put(directory+"/"+key, mapper.writeValueAsString(entry)).send().get().etcdIndex;
-    }
-    catch( Exception e ) {
+      return clientSupplier.get().put(directory + "/" + key, mapper.writeValueAsString(entry))
+        .send().get().etcdIndex;
+    } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to put key %s", key), e);
     }
   }
-  
+
   /**
    * Puts a value into the directory, with a time to live in seconds and returns the etcd index of the value.  The key should
    * not start with the '/' character.
@@ -74,15 +75,15 @@ public class EtcdDirectoryDao<T> {
    * @param ttl
    * @return
    */
-  public Long putWithTtl( String key, T entry, Integer ttl ) {
+  public Long putWithTtl(String key, T entry, Integer ttl) {
     try {
-      return clientSupplier.get().put(directory+"/"+key, mapper.writeValueAsString(entry)).ttl(ttl).send().get().etcdIndex;
-    }
-    catch( Exception e ) {
+      return clientSupplier.get().put(directory + "/" + key, mapper.writeValueAsString(entry))
+        .ttl(ttl).send().get().etcdIndex;
+    } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to put key %s", key), e);
     }
   }
-  
+
   /**
    * Updates the time to live of a given key and value and returns the new etcd index of that value.
    * 
@@ -91,12 +92,12 @@ public class EtcdDirectoryDao<T> {
    * @param ttl
    * @return
    */
-  public Long update( String key, T entry, Integer ttl ) {
+  public Long update(String key, T entry, Integer ttl) {
     try {
       String value = mapper.writeValueAsString(entry);
-      return clientSupplier.get().put(directory+"/"+key, value).ttl(ttl).prevValue(value).send().get().etcdIndex;
-    }
-    catch( Exception e ) {
+      return clientSupplier.get().put(directory + "/" + key, value).ttl(ttl).prevValue(value)
+        .send().get().etcdIndex;
+    } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to update ttl on key %s", key), e);
     }
   }
@@ -107,21 +108,19 @@ public class EtcdDirectoryDao<T> {
    * @param key
    * @return
    */
-  public Long remove( String key ) {
+  public Long remove(String key) {
     try {
-     return clientSupplier.get().delete(directory+"/"+key).send().get().etcdIndex;
-    }
-    catch( EtcdException e ) {
-      if( e.errorCode == 100 ) {
+      return clientSupplier.get().delete(directory + "/" + key).send().get().etcdIndex;
+    } catch (EtcdException e) {
+      if (e.errorCode == 100) {
         return e.index.longValue();
       }
       throw new EtcdDirectoryException(String.format("failed to delete key %s", key), e);
-    }
-    catch( Exception e ) {
+    } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to delete key %s", key), e);
     }
   }
-  
+
   /**
    * Deletes this directory and all of its children.  A new, empty directory is then created with
    * the same name and the etcd index of that directory is returned.
@@ -129,15 +128,13 @@ public class EtcdDirectoryDao<T> {
    * @return
    */
   public Long resetDirectory() {
-    try {      
+    try {
       clientSupplier.get().deleteDir(directory).recursive().send().get();
-    }
-    catch( Exception e ) {
+    } catch (Exception e) {
     }
     try {
       return clientSupplier.get().putDir(directory).isDir().send().get().etcdIndex;
-    }
-    catch( Exception e ) {
+    } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to reset directory %s", directory), e);
     }
   }
@@ -149,25 +146,22 @@ public class EtcdDirectoryDao<T> {
    */
   public Stream<T> stream() {
     try {
-    EtcdKeysResponse response = clientSupplier.get()
-      .getDir(directory).send().get();
-    
-    if( response.node == null || response.node.nodes == null ) {
-      return Stream.empty();
-    }
+      EtcdKeysResponse response = clientSupplier.get().getDir(directory).send().get();
 
-    return response.node.nodes.stream()
-      .map(n->{
+      if (response.node == null || response.node.nodes == null) {
+        return Stream.empty();
+      }
+
+      return response.node.nodes.stream().map(n -> {
         try {
           return mapper.readValue(n.value, type);
-        }
-        catch( Exception e ) {
+        } catch (Exception e) {
           return null;
         }
       });
-    }
-    catch( Exception e ) {
-      if( e instanceof EtcdException && ((EtcdException)e).errorCode == 100 ) return Stream.empty();
+    } catch (Exception e) {
+      if (e instanceof EtcdException && ((EtcdException) e).errorCode == 100)
+        return Stream.empty();
       throw new EtcdDirectoryException(String.format("failed to list directory %s", directory), e);
     }
   }
@@ -178,18 +172,18 @@ public class EtcdDirectoryDao<T> {
    * @param key
    * @return
    */
-  public T get( String key ) {
+  public T get(String key) {
     try {
-      return mapper.readValue(clientSupplier.get().get(directory+"/"+key).send().get().node.value, type);
-    }
-    catch( EtcdException e ) {
-      if( e.errorCode == 100 ) {
+      return mapper.readValue(
+        clientSupplier.get().get(directory + "/" + key).send().get().node.value, type);
+    } catch (EtcdException e) {
+      if (e.errorCode == 100) {
         throw new KeyNotFound(e.etcdMessage, e);
       }
       throw new EtcdDirectoryException(e.etcdMessage, e);
-    }
-    catch( Exception e ) {
-      throw new EtcdDirectoryException(String.format("could not load key %s from directory %s", key, directory), e);
+    } catch (Exception e) {
+      throw new EtcdDirectoryException(String.format("could not load key %s from directory %s",
+        key, directory), e);
     }
   }
 
@@ -199,18 +193,14 @@ public class EtcdDirectoryDao<T> {
    * @param key
    * @return
    */
-  public Long putDir( String key ) {
+  public Long putDir(String key) {
     try {
-      return clientSupplier.get()
-        .putDir(directory+key)
-        .send()
-        .get()
-        .etcdIndex;
-    } catch( Exception e ) {
-      throw new EtcdDirectoryException(String.format("failed to put directory key %s", key), e);      
+      return clientSupplier.get().putDir(directory + key).send().get().etcdIndex;
+    } catch (Exception e) {
+      throw new EtcdDirectoryException(String.format("failed to put directory key %s", key), e);
     }
   }
-  
+
   /**
    * Updates the value of key, using the specified transform, if its current value matches predicate.
    * 
@@ -219,40 +209,36 @@ public class EtcdDirectoryDao<T> {
    * @param transform
    * @return
    */
-  public Long update( String key, Predicate<T> precondition, Function<T, T> transform ) {
+  public Long update(String key, Predicate<T> precondition, Function<T, T> transform) {
     T currentValue = get(key);
-    if( !precondition.test(currentValue) ) {
+    if (!precondition.test(currentValue)) {
       throw new EtcdDirectoryException(String.format("precondition failed while updating %s", key));
     }
     T nextValue = transform.apply(clone(currentValue));
-    return put( key, nextValue, currentValue);
+    return put(key, nextValue, currentValue);
   }
-  
+
   /**
    * Helper method to clone objects of this directory's type.
    * 
    * @param value
    * @return
    */
-  public T clone( T value ) {
+  public T clone(T value) {
     return mapper.convertValue(mapper.convertValue(value, JsonNode.class), type);
   }
 
   /**
    * Puts the given value into key, if the previous value matches.
    */
-  public Long put( String key, T value, T previousValue ) {
-     try {
-       return clientSupplier.get()
-         .put(directory+"/"+key, mapper.writeValueAsString(value))
-         .prevValue(mapper.writeValueAsString(previousValue))
-         .send()
-         .get()
-         .etcdIndex;
-     }
-     catch( Exception e ) {
-       throw new EtcdDirectoryException(String.format("failed to put key %s with previous value", key), e);
-     }
+  public Long put(String key, T value, T previousValue) {
+    try {
+      return clientSupplier.get().put(directory + "/" + key, mapper.writeValueAsString(value))
+        .prevValue(mapper.writeValueAsString(previousValue)).send().get().etcdIndex;
+    } catch (Exception e) {
+      throw new EtcdDirectoryException(String.format("failed to put key %s with previous value",
+        key), e);
+    }
   }
 
 }

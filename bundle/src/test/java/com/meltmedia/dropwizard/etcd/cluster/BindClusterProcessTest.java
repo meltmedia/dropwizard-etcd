@@ -28,13 +28,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class BindClusterProcessTest {
   public ObjectMapper mapper = new ObjectMapper();
-  
+
   @Test
-  public void shouldReadClusterProcess() throws JsonParseException, JsonMappingException, IOException {
+  public void shouldReadClusterProcess() throws JsonParseException, JsonMappingException,
+    IOException {
     String value = "{\"assignedTo\":\"name\", \"configuration\": {\"property\":\"value\"}}";
-    
+
     ClusterProcess process = mapper.readValue(value, ClusterProcess.class);
-    
+
     assertThat(process.getConfiguration().get("property").asText(), equalTo("value"));
   }
 }

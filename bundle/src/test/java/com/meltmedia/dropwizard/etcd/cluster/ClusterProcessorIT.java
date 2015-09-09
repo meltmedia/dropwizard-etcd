@@ -44,31 +44,36 @@ import com.meltmedia.dropwizard.etcd.json.EtcdJsonRule;
 public class ClusterProcessorIT {
   @ClassRule
   public static EtcdClientRule etcdClientSupplier = new EtcdClientRule("http://127.0.0.1:2379");
-  
+
   @Rule
   public EtcdJsonRule factoryRule = new EtcdJsonRule(etcdClientSupplier::getClient, "/test");
-  
+
   ClusterProcessor<NodeData> service;
   ScheduledExecutorService executor;
   EtcdDirectoryDao<ClusterProcess> dao;
   ClusterProcessLifecycle lifecycle;
-  
+
   @Before
   public void setUp() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
     executor = Executors.newScheduledThreadPool(4, Executors.defaultThreadFactory());
     lifecycle = mock(ClusterProcessLifecycle.class);
-    
-    service = ClusterProcessor.<NodeData>builder()
-      .withMapper(mapper)
-      .withDirectory(factoryRule.getFactory().newDirectory("/jobs", new TypeReference<ClusterProcess>(){}))
-      .withLifecycleFactory(d->lifecycle)
-      .withNodeId("1")
-      .withType(new TypeReference<NodeData>(){})
-      .build();
-    
-    dao = new EtcdDirectoryDao<ClusterProcess>(etcdClientSupplier::getClient, "/test/jobs", mapper, new TypeReference<ClusterProcess>(){});
-    
+
+    service =
+      ClusterProcessor
+        .<NodeData> builder()
+        .withMapper(mapper)
+        .withDirectory(
+          factoryRule.getFactory().newDirectory("/jobs", new TypeReference<ClusterProcess>() {
+          })).withLifecycleFactory(d -> lifecycle).withNodeId("1")
+        .withType(new TypeReference<NodeData>() {
+        }).build();
+
+    dao =
+      new EtcdDirectoryDao<ClusterProcess>(etcdClientSupplier::getClient, "/test/jobs", mapper,
+        new TypeReference<ClusterProcess>() {
+        });
+
     service.start();
   }
 
@@ -82,50 +87,50 @@ public class ClusterProcessorIT {
     dao.put("id", processNode("1", "name"));
 
     verify(lifecycle, timeout(1000).times(1)).start();
-    
+
     dao.remove("id");
-    
+
     verify(lifecycle, timeout(1000).times(1)).stop();
   }
-  
+
   @Test
   public void shouldStopWhenProcessReassignedToAnotherNode() {
     dao.put("id", processNode("1", "name"));
 
     verify(lifecycle, timeout(1000).times(1)).start();
-    
+
     dao.put("id", processNode("2", "name"));
-    
+
     verify(lifecycle, timeout(1000).times(1)).stop();
   }
-  
+
   @Test
   public void shouldStartWhenReassignedToThisNode() {
     dao.put("id", processNode("2", "name"));
 
     verify(lifecycle, never()).start();
-    
+
     dao.put("id", processNode("1", "name"));
-    
-    verify(lifecycle, timeout(1000).times(1)).start();    
+
+    verify(lifecycle, timeout(1000).times(1)).start();
   }
-  
+
   @Test
   public void shouldStopProcessesWhenServiceStops() {
     dao.put("id", processNode("1", "name"));
 
     verify(lifecycle, timeout(1000).times(1)).start();
-    
+
     service.stop();
-    
+
     verify(lifecycle, timeout(1000).times(1)).stop();
   }
- 
-  public static ClusterProcess processNode( String assignedTo, String name ) {
+
+  public static ClusterProcess processNode(String assignedTo, String name) {
     return new ClusterProcess().withAssignedTo(assignedTo).withConfiguration(nodeData(name));
   }
-  
-  public static ObjectNode nodeData( String name ) {
+
+  public static ObjectNode nodeData(String name) {
     return JsonNodeFactory.instance.objectNode().put("name", name);
   }
 
@@ -136,20 +141,20 @@ public class ClusterProcessorIT {
       return name;
     }
 
-    public void setName( String name ) {
+    public void setName(String name) {
       this.name = name;
     }
-    
-    public NodeData withName( String name ) {
+
+    public NodeData withName(String name) {
       this.name = name;
       return this;
     }
-    
+
     public String toString() {
       return ToStringBuilder.reflectionToString(this);
     }
-    
-    public boolean equals( Object o ) {
+
+    public boolean equals(Object o) {
       return EqualsBuilder.reflectionEquals(this, o);
     }
   }

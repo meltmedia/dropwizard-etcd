@@ -34,53 +34,57 @@ public class ClusterBundle<C extends Configuration> implements ConfiguredBundle<
   public static class Builder<C extends Configuration> {
     Supplier<EtcdJson> factorySupplier;
     Supplier<ScheduledExecutorService> executorSupplier;
-    
-    public Builder<C> withFactorySupplier( Supplier<EtcdJson> factorySupplier ) {
+
+    public Builder<C> withFactorySupplier(Supplier<EtcdJson> factorySupplier) {
       this.factorySupplier = factorySupplier;
       return this;
     }
-    
-    public Builder<C> withExecutorSupplier( Supplier<ScheduledExecutorService> executorSupplier ) {
+
+    public Builder<C> withExecutorSupplier(Supplier<ScheduledExecutorService> executorSupplier) {
       this.executorSupplier = executorSupplier;
       return this;
     }
-    
+
     public ClusterBundle<C> build() {
       return new ClusterBundle<C>(factorySupplier, executorSupplier);
     }
   }
-  
+
   public static <C extends Configuration> Builder<C> builder() {
     return new Builder<C>();
   }
-  
+
   Supplier<EtcdJson> factorySupplier;
   ClusterService service;
   Supplier<ScheduledExecutorService> executorSupplier;
 
-  public ClusterBundle( Supplier<EtcdJson> factorySupplier, Supplier<ScheduledExecutorService> executorSupplier  ) {
+  public ClusterBundle(Supplier<EtcdJson> factorySupplier,
+    Supplier<ScheduledExecutorService> executorSupplier) {
     this.factorySupplier = factorySupplier;
     this.executorSupplier = executorSupplier;
   }
 
   @Override
-  public void initialize( Bootstrap<?> bootstrap ) {
-    
+  public void initialize(Bootstrap<?> bootstrap) {
+
   }
 
   @Override
-  public void run( C configuration, Environment environment ) {
+  public void run(C configuration, Environment environment) {
     environment.lifecycle().manage(new Managed() {
       @Override
       public void start() throws Exception {
-        service = ClusterService.builder()
-          .withExecutor(executorSupplier.get())
-          .withEtcdFactory(factorySupplier.get())
-          .withNodesDirectory(factorySupplier
-            .get()
-            .newDirectory("/nodes", new TypeReference<ClusterNode>(){}))
-          .withThisNode(new ClusterNode().withId(UUID.randomUUID().toString()).withStartedAt(new DateTime()))
-          .build();
+        service =
+          ClusterService
+            .builder()
+            .withExecutor(executorSupplier.get())
+            .withEtcdFactory(factorySupplier.get())
+            .withNodesDirectory(
+              factorySupplier.get().newDirectory("/nodes", new TypeReference<ClusterNode>() {
+              }))
+            .withThisNode(
+              new ClusterNode().withId(UUID.randomUUID().toString()).withStartedAt(new DateTime()))
+            .build();
         service.start();
       }
 
@@ -91,7 +95,7 @@ public class ClusterBundle<C extends Configuration> implements ConfiguredBundle<
       }
     });
   }
-  
+
   public ClusterService getService() {
     return service;
   }

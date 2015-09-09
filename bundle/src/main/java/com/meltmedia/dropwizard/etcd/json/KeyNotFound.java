@@ -15,7 +15,6 @@
  */
 package com.meltmedia.dropwizard.etcd.json;
 
-
 public class KeyNotFound extends EtcdDirectoryException {
   private static final long serialVersionUID = 1L;
 
@@ -23,19 +22,20 @@ public class KeyNotFound extends EtcdDirectoryException {
     super();
   }
 
-  public KeyNotFound( String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace ) {
+  public KeyNotFound(String message, Throwable cause, boolean enableSuppression,
+    boolean writableStackTrace) {
     super(message, cause, enableSuppression, writableStackTrace);
   }
 
-  public KeyNotFound( String message, Throwable cause ) {
+  public KeyNotFound(String message, Throwable cause) {
     super(message, cause);
   }
 
-  public KeyNotFound( String message ) {
+  public KeyNotFound(String message) {
     super(message);
   }
 
-  public KeyNotFound( Throwable cause ) {
+  public KeyNotFound(Throwable cause) {
     super(cause);
   }
 

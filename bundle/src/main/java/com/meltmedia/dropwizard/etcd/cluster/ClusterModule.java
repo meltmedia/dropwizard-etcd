@@ -28,12 +28,14 @@ public class ClusterModule extends AbstractModule {
 
   private ClusterBundle<? extends Configuration> bundle;
 
-  public ClusterModule( ClusterBundle<? extends Configuration> bundle ) {
+  public ClusterModule(ClusterBundle<? extends Configuration> bundle) {
     this.bundle = bundle;
   }
+
   @Override
-  protected void configure() {}
-  
+  protected void configure() {
+  }
+
   @Singleton
   @Provides
   public Supplier<ClusterService> provideClusterServiceSupplier() {

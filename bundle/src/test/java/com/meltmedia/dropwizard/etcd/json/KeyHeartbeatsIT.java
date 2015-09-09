@@ -41,23 +41,25 @@ import com.meltmedia.dropwizard.etcd.json.WatchService;
 public class KeyHeartbeatsIT {
   @ClassRule
   public static EtcdClientRule etcdClientSupplier = new EtcdClientRule("http://127.0.0.1:2379");
-  
+
   @Rule
   public EtcdJsonRule factoryRule = new EtcdJsonRule(etcdClientSupplier::getClient, "/test");
-  
+
   Heartbeat<NodeData> heartbeats;
   EtcdEventHandler<NodeData> handler;
   WatchService.Watch watch;
-  
+
   @SuppressWarnings("unchecked")
   @Before
   public void setUp() {
     handler = mock(EtcdEventHandler.class);
-    
-    EtcdJson.MappedEtcdDirectory<NodeData> directory = factoryRule.getFactory().newDirectory("/nodes", new TypeReference<NodeData>(){});
-    
+
+    EtcdJson.MappedEtcdDirectory<NodeData> directory =
+      factoryRule.getFactory().newDirectory("/nodes", new TypeReference<NodeData>() {
+      });
+
     heartbeats = directory.newHeartbeat("/id", new NodeData().withName("id"), 1);
-    
+
     watch = directory.registerWatch(handler);
   }
 
@@ -70,28 +72,28 @@ public class KeyHeartbeatsIT {
   @Test
   public void shouldKeepRecordActive() throws InterruptedException {
     verify(handler, never()).handle(any(EtcdEvent.class));
-    
+
     heartbeats.start();
-    
+
     verify(handler, timeout(1000).times(1)).handle(anyEtcdEventOfType(EtcdEvent.Type.added));
     verify(handler, never()).handle(anyEtcdEventOfType(EtcdEvent.Type.removed));
-      
+
     heartbeats.stop();
   }
-  
+
   @Test
   public void shouldRemoveRecordAfterStop() {
     verify(handler, never()).handle(anyEtcdEventOfType(EtcdEvent.Type.added));
-    
+
     heartbeats.start();
-    
+
     verify(handler, timeout(2000).times(1)).handle(anyEtcdEventOfType(EtcdEvent.Type.added));
 
     heartbeats.stop();
 
     verify(handler, timeout(1000).times(1)).handle(anyEtcdEventOfType(EtcdEvent.Type.removed));
   }
-  
+
   public static class NodeData {
     protected String name;
 
@@ -99,20 +101,20 @@ public class KeyHeartbeatsIT {
       return name;
     }
 
-    public void setName( String name ) {
+    public void setName(String name) {
       this.name = name;
     }
-    
-    public NodeData withName( String name ) {
+
+    public NodeData withName(String name) {
       this.name = name;
       return this;
     }
-    
+
     public String toString() {
       return ToStringBuilder.reflectionToString(this);
     }
-    
-    public boolean equals( Object o ) {
+
+    public boolean equals(Object o) {
       return EqualsBuilder.reflectionEquals(this, o);
     }
   }

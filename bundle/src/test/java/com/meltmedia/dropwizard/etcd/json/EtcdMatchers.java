@@ -24,31 +24,30 @@ import com.google.common.base.Objects;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
 
 public class EtcdMatchers {
-  
-  public static <T> EtcdEvent<T> anyEtcdEventOfType( final EtcdEvent.Type type ) {
+
+  public static <T> EtcdEvent<T> anyEtcdEventOfType(final EtcdEvent.Type type) {
     return argThat(new ArgumentMatcher<EtcdEvent<T>>() {
       public boolean matches(Object event) {
-          return ((EtcdEvent<?>) event).getType() == type;
+        return ((EtcdEvent<?>) event).getType() == type;
       }
-   });
+    });
   }
-  
-  public static <T> EtcdEvent<T> atAnyIndex( final EtcdEvent<T> value ) {
+
+  public static <T> EtcdEvent<T> atAnyIndex(final EtcdEvent<T> value) {
     return argThat(new ArgumentMatcher<EtcdEvent<T>>() {
       @SuppressWarnings("unchecked")
       public boolean matches(Object eventObject) {
-        EtcdEvent<T> event = (EtcdEvent<T>)eventObject;
-        return
-          Objects.equal(event.getType(), value.getType()) &&
-          Objects.equal(event.getKey(), value.getKey()) &&
-          Objects.equal(event.getValue(), value.getValue()) &&
-          Objects.equal(event.getPrevValue(), value.getPrevValue());
+        EtcdEvent<T> event = (EtcdEvent<T>) eventObject;
+        return Objects.equal(event.getType(), value.getType())
+          && Objects.equal(event.getKey(), value.getKey())
+          && Objects.equal(event.getValue(), value.getValue())
+          && Objects.equal(event.getPrevValue(), value.getPrevValue());
       }
-      
+
       @Override
-      public void describeTo( Description description ) {
-        description.appendText("expected "+value.getKey()+" without index");
+      public void describeTo(Description description) {
+        description.appendText("expected " + value.getKey() + " without index");
       }
-   });
+    });
   }
 }

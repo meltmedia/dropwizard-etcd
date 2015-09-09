@@ -34,29 +34,29 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.health.HealthCheck;
 
 public class EtcdBundle<C extends Configuration> implements ConfiguredBundle<C> {
-  
+
   public static Logger log = LoggerFactory.getLogger(EtcdBundle.class);
-  
+
   public static interface ConfigurationAccessor<C extends Configuration> {
     public EtcdConfiguration configuration(C configuration);
   }
-  
+
   public static class Builder<C extends Configuration> {
     ConfigurationAccessor<C> configurationAccessor;
-    
-    public Builder<C> withConfiguration( ConfigurationAccessor<C> configurationAccessor ) {
+
+    public Builder<C> withConfiguration(ConfigurationAccessor<C> configurationAccessor) {
       this.configurationAccessor = configurationAccessor;
       return this;
     }
-    
+
     public EtcdBundle<C> build() {
-      if( configurationAccessor == null ) {
+      if (configurationAccessor == null) {
         throw new IllegalArgumentException("The configuration accessor is required.");
       }
       return new EtcdBundle<C>(configurationAccessor);
     }
   }
-  
+
   public static <C extends Configuration> Builder<C> builder() {
     return new Builder<C>();
   }
@@ -65,21 +65,24 @@ public class EtcdBundle<C extends Configuration> implements ConfiguredBundle<C> 
   EtcdConfiguration bundleConfig;
   EtcdClient client;
 
-  EtcdBundle( ConfigurationAccessor<C> configurationAccessor ) {
+  EtcdBundle(ConfigurationAccessor<C> configurationAccessor) {
     this.configurationAccessor = configurationAccessor;
   }
 
   @Override
-  public void run( C configuration, Environment environment ) throws Exception {
+  public void run(C configuration, Environment environment) throws Exception {
     bundleConfig = configurationAccessor.configuration(configuration);
-    if( bundleConfig.getUrls() == null ) bundleConfig.setUrls(Lists.newArrayList());
-    if( bundleConfig.getUrls().isEmpty() ) bundleConfig.getUrls().add(URI.create("http://127.0.0.1:2379"));
+    if (bundleConfig.getUrls() == null)
+      bundleConfig.setUrls(Lists.newArrayList());
+    if (bundleConfig.getUrls().isEmpty())
+      bundleConfig.getUrls().add(URI.create("http://127.0.0.1:2379"));
     environment.lifecycle().manage(new Managed() {
       @Override
       public void start() throws Exception {
-        EtcdNettyConfig config = new EtcdNettyConfig()
-          .setHostName(bundleConfig.getHostName());
-        client =  new EtcdClient(new EtcdNettyClient(config, null, bundleConfig.getUrls().toArray(new URI[]{})));
+        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(bundleConfig.getHostName());
+        client =
+          new EtcdClient(new EtcdNettyClient(config, null, bundleConfig.getUrls().toArray(
+            new URI[] {})));
         log.info("connected to etcd, version {}", client.getVersion());
       }
 
@@ -93,8 +96,7 @@ public class EtcdBundle<C extends Configuration> implements ConfiguredBundle<C> 
       protected Result check() throws Exception {
         try {
           return Result.healthy("Connected to Etcd version %s", client.getVersion());
-        }
-        catch( Exception e ) {
+        } catch (Exception e) {
           return Result.unhealthy(e);
         }
       }
@@ -102,14 +104,14 @@ public class EtcdBundle<C extends Configuration> implements ConfiguredBundle<C> 
   }
 
   @Override
-  public void initialize( Bootstrap<?> bootstrap ) {
-    // TODO Auto-generated method stuff 
+  public void initialize(Bootstrap<?> bootstrap) {
+    // TODO Auto-generated method stuff
   }
 
   public EtcdClient getClient() {
     return client;
   }
-  
+
   public EtcdConfiguration getConfiguration() {
     return bundleConfig;
   }

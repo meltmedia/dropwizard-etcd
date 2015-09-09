@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Heartbeat<T> {
   private static final Logger logger = LoggerFactory.getLogger(Heartbeat.class);
-  
+
   public static class Builder<T> {
     private String key;
     private Supplier<EtcdClient> client;
@@ -37,37 +37,37 @@ public class Heartbeat<T> {
     private ObjectMapper mapper;
     private T value;
     private Integer ttl;
-    
-    public Builder<T> withKey( String key ) {
+
+    public Builder<T> withKey(String key) {
       this.key = key;
       return this;
     }
-    
-    public Builder<T> withClient( Supplier<EtcdClient> client ) {
+
+    public Builder<T> withClient(Supplier<EtcdClient> client) {
       this.client = client;
       return this;
     }
-    
-    public Builder<T> withMapper( ObjectMapper mapper ) {
+
+    public Builder<T> withMapper(ObjectMapper mapper) {
       this.mapper = mapper;
       return this;
     }
-    
-    public Builder<T> withExecutor( ScheduledExecutorService executor ) {
+
+    public Builder<T> withExecutor(ScheduledExecutorService executor) {
       this.executor = executor;
       return this;
     }
-    
-    public Builder<T> withValue( T value ) {
+
+    public Builder<T> withValue(T value) {
       this.value = value;
       return this;
     }
-    
-    public Builder<T> withTtl( Integer ttl ) {
+
+    public Builder<T> withTtl(Integer ttl) {
       this.ttl = ttl;
       return this;
     }
-    
+
     public Heartbeat<T> build() {
       return new Heartbeat<T>(executor, client, mapper, key, value, ttl);
     }
@@ -84,8 +84,9 @@ public class Heartbeat<T> {
   private ScheduledFuture<?> heartbeatFuture;
   private T value;
   private Integer ttl;
-  
-  private Heartbeat( ScheduledExecutorService executor, Supplier<EtcdClient> client, ObjectMapper mapper, String key, T value, Integer ttl ) {
+
+  private Heartbeat(ScheduledExecutorService executor, Supplier<EtcdClient> client,
+    ObjectMapper mapper, String key, T value, Integer ttl) {
     this.executor = executor;
     this.client = client;
     this.mapper = mapper;
@@ -96,24 +97,21 @@ public class Heartbeat<T> {
 
   public void start() {
     logger.info("starting heartbeats for {}", key);
-    heartbeatFuture = executor.scheduleAtFixedRate(()->{
+    heartbeatFuture = executor.scheduleAtFixedRate(() -> {
       try {
         logger.debug("sending heartbeat for {}", key);
-        client.get().put(key, mapper.writeValueAsString(value))
-          .ttl(ttl)
-          .send()
-          .get();
-      } catch( Exception e ) {
+        client.get().put(key, mapper.writeValueAsString(value)).ttl(ttl).send().get();
+      } catch (Exception e) {
         logger.error(String.format("could not heartbeat node %s in etcd", key), e);
       }
-    }, 1, ttl*500, TimeUnit.MILLISECONDS);
+    }, 1, ttl * 500, TimeUnit.MILLISECONDS);
   }
-  
+
   public void stop() {
     heartbeatFuture.cancel(true);
     try {
       client.get().delete(key).send().get();
-    } catch( Exception e ) {
+    } catch (Exception e) {
       logger.error(String.format("could not delete node %s from etcd", key), e);
     }
   }

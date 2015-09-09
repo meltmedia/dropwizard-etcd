@@ -43,54 +43,47 @@ import com.meltmedia.dropwizard.etcd.json.WatchService;
 
 public class ClusterAssignmentService {
   private static Logger logger = LoggerFactory.getLogger(ClusterAssignmentService.class);
+
   public static class Builder {
-    
+
     private ScheduledExecutorService executor;
     private ClusterNode thisNode;
     private MappedEtcdDirectory<ClusterProcess> processDir;
     private ClusterStateTracker stateTracker;
     private Optional<FixedDelay> crashCleanupDelay = Optional.empty();
 
-    public Builder withExecutor( ScheduledExecutorService executor ) {
+    public Builder withExecutor(ScheduledExecutorService executor) {
       this.executor = executor;
       return this;
     }
-    
-    public Builder withProcessDir( MappedEtcdDirectory<ClusterProcess> processDir ) {
+
+    public Builder withProcessDir(MappedEtcdDirectory<ClusterProcess> processDir) {
       this.processDir = processDir;
       return this;
     }
-    
-    public Builder withThisNode( ClusterNode thisNode ) {
+
+    public Builder withThisNode(ClusterNode thisNode) {
       this.thisNode = thisNode;
       return this;
     }
-    
-    public Builder withClusterState( ClusterStateTracker stateTracker ) {
+
+    public Builder withClusterState(ClusterStateTracker stateTracker) {
       this.stateTracker = stateTracker;
       return this;
     }
-    
-    public Builder withCrashCleanupDelay( FixedDelay crashCleanupDelay ) {
+
+    public Builder withCrashCleanupDelay(FixedDelay crashCleanupDelay) {
       this.crashCleanupDelay = Optional.ofNullable(crashCleanupDelay);
       return this;
     }
 
     public ClusterAssignmentService build() {
-      return new ClusterAssignmentService(
-        executor,
-        thisNode,
-        processDir,
-        stateTracker,
-        crashCleanupDelay
-          .orElse(FixedDelay.builder()
-            .withDelay(10)
-            .withInitialDelay(10)
-            .withTimeUnit(TimeUnit.SECONDS)
-            .build()));
+      return new ClusterAssignmentService(executor, thisNode, processDir, stateTracker,
+        crashCleanupDelay.orElse(FixedDelay.builder().withDelay(10).withInitialDelay(10)
+          .withTimeUnit(TimeUnit.SECONDS).build()));
     }
   }
-  
+
   public static Builder builder() {
     return new Builder();
   }
@@ -99,7 +92,9 @@ public class ClusterAssignmentService {
     return thisNode.getId();
   }
 
-  public ClusterAssignmentService( ScheduledExecutorService executor, ClusterNode thisNode, MappedEtcdDirectory<ClusterProcess> processDir, ClusterStateTracker stateTracker, FixedDelay crashCleanupDelay  ) {
+  public ClusterAssignmentService(ScheduledExecutorService executor, ClusterNode thisNode,
+    MappedEtcdDirectory<ClusterProcess> processDir, ClusterStateTracker stateTracker,
+    FixedDelay crashCleanupDelay) {
     this.executor = executor;
     this.thisNode = thisNode;
     this.processDir = processDir;
@@ -124,14 +119,14 @@ public class ClusterAssignmentService {
   Map<String, Set<String>> processes = Maps.newConcurrentMap();
   List<String> unassigned = Lists.newCopyOnWriteArrayList();
   private ScheduledFuture<?> cleanupFuture;
-  
+
   public void start() {
     logger.debug("starting assignments for {}", thisNode.getId());
     jobsWatch = processDir.registerWatch(this::handleProcess);
     startNodeAssignmentTask();
     startFailureCleanupTask();
   }
-  
+
   public void stop() {
     logger.debug("stopping assignments for {}", thisNode.getId());
     stopFailureCleanupTask();
@@ -146,115 +141,129 @@ public class ClusterAssignmentService {
 
   public void startNodeAssignmentTask() {
     logger.info("starting assignment task for {}", thisNode.getId());
-    assignmentFuture = executor.scheduleWithFixedDelay(()->{
-      logger.debug("assignment loop for {}", thisNode.getId());
-      try {
-      int processCount = thisProcessCount.get();
-      int currentNodeCount = stateTracker.getState().memberCount();
-      int total = totalProcessCount.get();
-      
-      int maxProcessCount = currentNodeCount == 0 ? 0 : IntMath.divide(total, currentNodeCount, RoundingMode.CEILING);
-      
-      logger.debug("empty nodes on {} {}", thisNode.getId(), unassigned);
+    assignmentFuture =
+      executor.scheduleWithFixedDelay(
+        () -> {
+          logger.debug("assignment loop for {}", thisNode.getId());
+          try {
+            int processCount = thisProcessCount.get();
+            int currentNodeCount = stateTracker.getState().memberCount();
+            int total = totalProcessCount.get();
 
-      if( processCount < maxProcessCount && !unassigned.isEmpty() ) {
-        for( String toAssign : unassigned ) {
-        try {
-          processDao.update(toAssign, p->p.getAssignedTo() == null, p->p.withAssignedTo(thisNode.getId()));
-          return;
-        }
-        catch( IndexOutOfBoundsException | EtcdDirectoryException e ) {
-          logger.debug("could not assign process {}", e.getMessage());
-          ignoreException(()->TimeUnit.SECONDS.sleep(1));
-        }
-        }
-      } else if( processCount > maxProcessCount ) {
-        for( String toUnassign : processes.get(thisNode.getId()) ) {
-        try {
-          processDao.update(toUnassign, p->thisNode.getId().equals(p.getAssignedTo()), p->p.withAssignedTo(null));
-          return;
-        }
-        catch( IndexOutOfBoundsException | EtcdDirectoryException e ) {
-          logger.warn("could not unassign process {}", e.getMessage());
-        }
-        }
-      }
-        ignoreException(()->TimeUnit.SECONDS.sleep(1));
-      } catch( Exception e ) {
-        logger.error("exception thrown in assignment process.", e);
-      }
-    }, 100L, 100L, TimeUnit.MILLISECONDS);
+            int maxProcessCount =
+              currentNodeCount == 0 ? 0 : IntMath.divide(total, currentNodeCount,
+                RoundingMode.CEILING);
+
+            logger.debug("empty nodes on {} {}", thisNode.getId(), unassigned);
+
+            if (processCount < maxProcessCount && !unassigned.isEmpty()) {
+              for (String toAssign : unassigned) {
+                try {
+                  processDao.update(toAssign, p -> p.getAssignedTo() == null,
+                    p -> p.withAssignedTo(thisNode.getId()));
+                  return;
+                } catch (IndexOutOfBoundsException | EtcdDirectoryException e) {
+                  logger.debug("could not assign process {}", e.getMessage());
+                  ignoreException(() -> TimeUnit.SECONDS.sleep(1));
+                }
+              }
+            } else if (processCount > maxProcessCount) {
+              for (String toUnassign : processes.get(thisNode.getId())) {
+                try {
+                  processDao.update(toUnassign, p -> thisNode.getId().equals(p.getAssignedTo()),
+                    p -> p.withAssignedTo(null));
+                  return;
+                } catch (IndexOutOfBoundsException | EtcdDirectoryException e) {
+                  logger.warn("could not unassign process {}", e.getMessage());
+                }
+              }
+            }
+            ignoreException(() -> TimeUnit.SECONDS.sleep(1));
+          } catch (Exception e) {
+            logger.error("exception thrown in assignment process.", e);
+          }
+        }, 100L, 100L, TimeUnit.MILLISECONDS);
   }
-  
+
   public void startFailureCleanupTask() {
     logger.info("starting failure clean up task for {}", thisNode.getId());
-    cleanupFuture = executor.scheduleWithFixedDelay(()->{
-      logger.debug("clean up loop for {}", thisNode.getId());
+    cleanupFuture =
+      executor
+        .scheduleWithFixedDelay(
+          () -> {
+            logger.debug("clean up loop for {}", thisNode.getId());
 
-      // iterate over the process map and make sure we have an entry in the state nodes.
-      State state = stateTracker.getState();
-      if( state.isLeader(thisNode) ) {
-        processes.entrySet().stream()
-          .filter(processEntry->!stateTracker.getState().hasMember(processEntry.getKey()))
-          .forEach((processEntry)->{
-            logger.info("cleaning up assignments for node {}", processEntry.getKey());
-            processEntry.getValue().stream().forEach(processId->processDao.update(
-              processId,
-              (process)->processEntry.getKey().equals(process.getAssignedTo()),
-              (process)->process.withAssignedTo(null)));
-          });
-      }
-    }, crashCleanupDelay.getInitialDelay(), crashCleanupDelay.getDelay(), crashCleanupDelay.getTimeUnit());
+            // iterate over the process map and make sure we have an entry in the state nodes.
+            State state = stateTracker.getState();
+            if (state.isLeader(thisNode)) {
+              processes
+                .entrySet()
+                .stream()
+                .filter(processEntry -> !stateTracker.getState().hasMember(processEntry.getKey()))
+                .forEach(
+                  (processEntry) -> {
+                    logger.info("cleaning up assignments for node {}", processEntry.getKey());
+                    processEntry
+                      .getValue()
+                      .stream()
+                      .forEach(
+                        processId -> processDao.update(processId, (process) -> processEntry
+                          .getKey().equals(process.getAssignedTo()), (process) -> process
+                          .withAssignedTo(null)));
+                  });
+            }
+          }, crashCleanupDelay.getInitialDelay(), crashCleanupDelay.getDelay(), crashCleanupDelay
+            .getTimeUnit());
   }
-  
+
   public void stopFailureCleanupTask() {
     try {
       cleanupFuture.cancel(true);
-    }
-    catch( Exception e ) {
+    } catch (Exception e) {
       logger.warn("error thrown while stoping cleanup task");
     }
     cleanupFuture = null;
   }
-  
+
   static void ignoreException(ClusterAssignmentService.RunnableWithException r) {
     try {
       r.run();
-    }
-    catch( Exception e ) {
+    } catch (Exception e) {
       // do nothing.
     }
   }
-  
+
   static interface RunnableWithException {
     public void run() throws Exception;
   }
-  
+
   public void stopNodeAssignmentTask() {
     try {
       assignmentFuture.cancel(true);
-    }
-    catch( Exception e ) {
+    } catch (Exception e) {
       logger.warn("error thrown while stoping assignment task");
     }
     assignmentFuture = null;
   }
-  
+
   public void unassignJobs() {
-    processes.getOrDefault(thisNode.getId(), Collections.emptySet())
+    processes
+      .getOrDefault(thisNode.getId(), Collections.emptySet())
       .stream()
-      .forEach(processKey->{
-        try {
-          processDao.update(processKey, process->thisNode.getId().equals(process.getAssignedTo()), process->process.withAssignedTo(null));
-        }
-        catch( Exception e ) {
-          logger.warn("could not unassign process {}", processKey);
-        }
-      });
+      .forEach(
+        processKey -> {
+          try {
+            processDao.update(processKey,
+              process -> thisNode.getId().equals(process.getAssignedTo()),
+              process -> process.withAssignedTo(null));
+          } catch (Exception e) {
+            logger.warn("could not unassign process {}", processKey);
+          }
+        });
   }
-  
-  public void handleProcess( EtcdEvent<ClusterProcess> event ) {
-    switch( event.getType() ) {
+
+  public void handleProcess(EtcdEvent<ClusterProcess> event) {
+    switch (event.getType()) {
       case added:
         addProcess(event.getKey(), event.getValue());
         break;
@@ -267,88 +276,84 @@ public class ClusterAssignmentService {
         break;
     }
   }
-  
-  void addProcess( String key, ClusterProcess process ) {
+
+  void addProcess(String key, ClusterProcess process) {
     Optional<String> assignedTo = assignedToKey(process);
-    if( assignedTo.isPresent() ) {
-      processes.computeIfAbsent(assignedTo.get(), k->Sets.newConcurrentHashSet()).add(key);
-    }
-    else {
-      if( unassigned.contains(key)) {
+    if (assignedTo.isPresent()) {
+      processes.computeIfAbsent(assignedTo.get(), k -> Sets.newConcurrentHashSet()).add(key);
+    } else {
+      if (unassigned.contains(key)) {
         logger.warn("key {} already unassigned", key);
       }
       unassigned.add(key);
     }
-    assignedTo
-      .filter(thisNode.getId()::equals)
-      .ifPresent((id)->thisProcessCount.incrementAndGet());
+    assignedTo.filter(thisNode.getId()::equals).ifPresent(
+      (id) -> thisProcessCount.incrementAndGet());
     totalProcessCount.incrementAndGet();
   }
-  
-  void removeProcess( String key, ClusterProcess process ) {
+
+  void removeProcess(String key, ClusterProcess process) {
     Optional<String> assignedTo = assignedToKey(process);
     totalProcessCount.decrementAndGet();
-    assignedTo
-    .filter(thisNode.getId()::equals)
-    .ifPresent((id)->thisProcessCount.decrementAndGet());
-    
-    if( assignedTo.isPresent() ) {
-      processes.computeIfPresent(assignedTo.get(), (k, v)->{
+    assignedTo.filter(thisNode.getId()::equals).ifPresent(
+      (id) -> thisProcessCount.decrementAndGet());
+
+    if (assignedTo.isPresent()) {
+      processes.computeIfPresent(assignedTo.get(), (k, v) -> {
         v.remove(key);
         return v.isEmpty() ? null : v;
       });
-    }
-    else {
+    } else {
       logger.debug("removing key {}", key);
-      if( !unassigned.remove(key) ) {
-        logger.warn("key {} removed but not present", key); 
+      if (!unassigned.remove(key)) {
+        logger.warn("key {} removed but not present", key);
       }
     }
   }
-  
+
   static Optional<String> assignedToKey(ClusterProcess process) {
     return Optional.ofNullable(process.getAssignedTo());
   }
-  
+
   public static class FixedDelay {
-     public static class Builder {
+    public static class Builder {
       private long initialDelay;
       private long delay;
       private TimeUnit timeUnit;
 
-      public Builder withInitialDelay( long initialDelay ) {
+      public Builder withInitialDelay(long initialDelay) {
         this.initialDelay = initialDelay;
         return this;
       }
-      
-      public Builder withDelay( long delay ) {
+
+      public Builder withDelay(long delay) {
         this.delay = delay;
         return this;
       }
-      
-      public Builder withTimeUnit( TimeUnit timeUnit ) {
+
+      public Builder withTimeUnit(TimeUnit timeUnit) {
         this.timeUnit = timeUnit;
         return this;
       }
-      
+
       public FixedDelay build() {
         return new FixedDelay(initialDelay, delay, timeUnit);
       }
     }
-     
-     public static Builder builder() {
-       return new Builder();
-     }
-     
-     private long initialDelay;
-     private long delay;
-     private TimeUnit timeUnit;
 
-     public FixedDelay( long initialDelay, long delay, TimeUnit timeUnit ) {
-       this.initialDelay = initialDelay;
-       this.delay = delay;
-       this.timeUnit = timeUnit;
-     }
+    public static Builder builder() {
+      return new Builder();
+    }
+
+    private long initialDelay;
+    private long delay;
+    private TimeUnit timeUnit;
+
+    public FixedDelay(long initialDelay, long delay, TimeUnit timeUnit) {
+      this.initialDelay = initialDelay;
+      this.delay = delay;
+      this.timeUnit = timeUnit;
+    }
 
     public long getInitialDelay() {
       return initialDelay;

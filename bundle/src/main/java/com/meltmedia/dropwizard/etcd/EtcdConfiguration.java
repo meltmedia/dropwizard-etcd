@@ -24,17 +24,20 @@ public class EtcdConfiguration {
   @NotNull
   List<URI> urls;
   String hostName;
-  
+
   public List<URI> getUrls() {
     return urls;
   }
-  public void setUrls( List<URI> urls ) {
+
+  public void setUrls(List<URI> urls) {
     this.urls = urls;
   }
+
   public String getHostName() {
     return this.hostName;
   }
-  public void setHostName( String hostName ) {
+
+  public void setHostName(String hostName) {
     this.hostName = hostName;
   }
 }

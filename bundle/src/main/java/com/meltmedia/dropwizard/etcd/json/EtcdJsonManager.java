@@ -21,7 +21,7 @@ public class EtcdJsonManager implements Managed {
 
   EtcdJson factory;
 
-  public EtcdJsonManager( EtcdJson factory ) {
+  public EtcdJsonManager(EtcdJson factory) {
     this.factory = factory;
   }
 

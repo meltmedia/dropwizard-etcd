@@ -23,10 +23,10 @@ package com.meltmedia.dropwizard.etcd.json;
  * @param <T> the type of the values being watched.
  */
 public interface EtcdEventHandler<T> {
-  
+
   /**
    * Handles events coming from an etcd watch.
    * @param event
    */
-  public void handle( EtcdEvent<T> event );
+  public void handle(EtcdEvent<T> event);
 }

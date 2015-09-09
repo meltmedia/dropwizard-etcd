@@ -30,27 +30,27 @@ public class ClusterService {
     private ScheduledExecutorService executor;
     private ClusterNode thisNode;
     private EtcdJson factory;
-    
-    public Builder withNodesDirectory( MappedEtcdDirectory<ClusterNode> nodesDirectory ) {
+
+    public Builder withNodesDirectory(MappedEtcdDirectory<ClusterNode> nodesDirectory) {
       this.nodesDirectory = nodesDirectory;
       return this;
     }
-    
-    public Builder withEtcdFactory( EtcdJson factory ) {
+
+    public Builder withEtcdFactory(EtcdJson factory) {
       this.factory = factory;
       return this;
     }
-    
-    public Builder withThisNode( ClusterNode thisNode ) {
+
+    public Builder withThisNode(ClusterNode thisNode) {
       this.thisNode = thisNode;
       return this;
     }
-    
-    public Builder withExecutor( ScheduledExecutorService executor ) {
+
+    public Builder withExecutor(ScheduledExecutorService executor) {
       this.executor = executor;
       return this;
     }
-    
+
     public ClusterService build() {
       return new ClusterService(executor, factory, thisNode, nodesDirectory);
     }
@@ -66,43 +66,39 @@ public class ClusterService {
   private ScheduledExecutorService executor;
   private Heartbeat<ClusterNode> heartbeats;
 
-  public ClusterService( ScheduledExecutorService executor, EtcdJson factory, ClusterNode thisNode, MappedEtcdDirectory<ClusterNode> nodesDirectory ) {
+  public ClusterService(ScheduledExecutorService executor, EtcdJson factory, ClusterNode thisNode,
+    MappedEtcdDirectory<ClusterNode> nodesDirectory) {
     this.executor = executor;
     this.factory = factory;
     this.thisNode = thisNode;
-    this.heartbeats = nodesDirectory.newHeartbeat("/"+thisNode.getId(), thisNode, 60);
-    this.stateTracker = ClusterStateTracker.builder()
-      .withDirectory(nodesDirectory)
-      .withThisNode(thisNode)
-      .build();
+    this.heartbeats = nodesDirectory.newHeartbeat("/" + thisNode.getId(), thisNode, 60);
+    this.stateTracker =
+      ClusterStateTracker.builder().withDirectory(nodesDirectory).withThisNode(thisNode).build();
   }
-  
+
   public void start() {
     heartbeats.start();
     stateTracker.start();
   }
-  
+
   public void stop() {
     stateTracker.stop();
     heartbeats.stop();
   }
-  
-  public <C> ProcessService<C> newProcessService( String directory, Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> configType ) {
-    return newProcessService(factory.newDirectory(directory, new TypeReference<ClusterProcess>(){}), lifecycleFactory, configType);
+
+  public <C> ProcessService<C> newProcessService(String directory,
+    Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> configType) {
+    return newProcessService(factory.newDirectory(directory, new TypeReference<ClusterProcess>() {
+    }), lifecycleFactory, configType);
   }
-  
-  public <C> ProcessService<C> newProcessService(MappedEtcdDirectory<ClusterProcess> directory, Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type) {
-    return ProcessService.<C>builder()
-      .withDirectory(directory)
-      .withLifecycleFactory(lifecycleFactory)
-      .withStateTracker(stateTracker)
-      .withExecutor(executor)
-      .withThisNode(thisNode)
-      .withType(type)
-      .withMapper(factory.getMapper())
-      .build();
+
+  public <C> ProcessService<C> newProcessService(MappedEtcdDirectory<ClusterProcess> directory,
+    Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type) {
+    return ProcessService.<C> builder().withDirectory(directory)
+      .withLifecycleFactory(lifecycleFactory).withStateTracker(stateTracker).withExecutor(executor)
+      .withThisNode(thisNode).withType(type).withMapper(factory.getMapper()).build();
   }
-  
+
   public static class ProcessService<C> {
     public static class Builder<C> {
       private MappedEtcdDirectory<ClusterProcess> directory;
@@ -112,44 +108,45 @@ public class ClusterService {
       private ScheduledExecutorService executor;
       private TypeReference<C> type;
       private ObjectMapper mapper;
-      
-      public Builder<C> withDirectory( MappedEtcdDirectory<ClusterProcess> directory ) {
+
+      public Builder<C> withDirectory(MappedEtcdDirectory<ClusterProcess> directory) {
         this.directory = directory;
         return this;
       }
-      
-      public Builder<C> withExecutor( ScheduledExecutorService executor ) {
+
+      public Builder<C> withExecutor(ScheduledExecutorService executor) {
         this.executor = executor;
         return this;
       }
 
-      public Builder<C> withStateTracker( ClusterStateTracker stateTracker ) {
+      public Builder<C> withStateTracker(ClusterStateTracker stateTracker) {
         this.stateTracker = stateTracker;
         return this;
       }
 
-      public Builder<C> withThisNode( ClusterNode thisNode ) {
+      public Builder<C> withThisNode(ClusterNode thisNode) {
         this.thisNode = thisNode;
         return this;
       }
-      
+
       public Builder<C> withLifecycleFactory(Function<C, ClusterProcessLifecycle> lifecycleFactory) {
         this.lifecycleFactory = lifecycleFactory;
         return this;
       }
-      
-      public Builder<C> withType( TypeReference<C> type ) {
+
+      public Builder<C> withType(TypeReference<C> type) {
         this.type = type;
         return this;
       }
-      
-      public Builder<C> withMapper( ObjectMapper mapper ) {
+
+      public Builder<C> withMapper(ObjectMapper mapper) {
         this.mapper = mapper;
         return this;
       }
-      
+
       public ProcessService<C> build() {
-        return new ProcessService<C>(thisNode, stateTracker, executor, directory, lifecycleFactory, type, mapper);
+        return new ProcessService<C>(thisNode, stateTracker, executor, directory, lifecycleFactory,
+          type, mapper);
       }
     }
 
@@ -161,33 +158,30 @@ public class ClusterService {
     private ClusterProcessor<C> processor;
     private MappedEtcdDirectory<ClusterProcess> directory;
 
-    public ProcessService( ClusterNode thisNode , ClusterStateTracker stateTracker , ScheduledExecutorService executor , MappedEtcdDirectory<ClusterProcess> directory, Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type, ObjectMapper mapper ) {
-      this.assignments = ClusterAssignmentService.builder()
-        .withExecutor(executor)
-        .withProcessDir(directory)
-        .withThisNode(thisNode)
-        .withClusterState(stateTracker)
-        .build();
-      this.processor = ClusterProcessor.<C>builder()
-        .withLifecycleFactory(lifecycleFactory)
-        .withDirectory(directory)
-        .withType(type)
-        .withNodeId(thisNode.getId())
-        .withMapper(mapper)
-        .build();
+    public ProcessService(ClusterNode thisNode, ClusterStateTracker stateTracker,
+      ScheduledExecutorService executor, MappedEtcdDirectory<ClusterProcess> directory,
+      Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type,
+      ObjectMapper mapper) {
+      this.assignments =
+        ClusterAssignmentService.builder().withExecutor(executor).withProcessDir(directory)
+          .withThisNode(thisNode).withClusterState(stateTracker).build();
+      this.processor =
+        ClusterProcessor.<C> builder().withLifecycleFactory(lifecycleFactory)
+          .withDirectory(directory).withType(type).withNodeId(thisNode.getId()).withMapper(mapper)
+          .build();
       this.directory = directory;
     }
-    
+
     public void start() {
       processor.start();
       assignments.start();
     }
-    
+
     public void stop() {
       assignments.stop();
-      processor.stop();  
+      processor.stop();
     }
-    
+
     public MappedEtcdDirectory<ClusterProcess> getDirectory() {
       return directory;
     }

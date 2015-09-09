@@ -31,9 +31,10 @@ import org.junit.Test;
 
 public class EtcdIT {
   EtcdClient client;
+
   @Before
   public void setUp() throws Exception {
-    client = new EtcdClient(new URI[] {URI.create("http://127.0.0.1:2379")});
+    client = new EtcdClient(new URI[] { URI.create("http://127.0.0.1:2379") });
   }
 
   @After

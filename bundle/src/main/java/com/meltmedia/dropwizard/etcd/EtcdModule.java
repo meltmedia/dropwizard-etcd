@@ -25,23 +25,23 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 
 public class EtcdModule extends AbstractModule {
-  
+
   EtcdBundle<?> bundle;
-  
-  public EtcdModule( EtcdBundle<?> bundle ) {
+
+  public EtcdModule(EtcdBundle<?> bundle) {
     this.bundle = bundle;
   }
 
   @Override
   protected void configure() {
   }
-  
+
   @Provides
   @Singleton
   public Supplier<EtcdClient> provideClientSupplier() {
     return bundle::getClient;
   }
-  
+
   @Provides
   @Singleton
   public EtcdConfiguration provideConfiguration() {

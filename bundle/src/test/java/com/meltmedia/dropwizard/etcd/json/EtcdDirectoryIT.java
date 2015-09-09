@@ -31,31 +31,30 @@ import com.meltmedia.dropwizard.etcd.json.KeyNotFound;
 public class EtcdDirectoryIT {
   @ClassRule
   public static EtcdClientRule clientRule = new EtcdClientRule("http://127.0.0.1:2379");
-  
+
   @Rule
   public EtcdJsonRule factoryRule = new EtcdJsonRule(clientRule::getClient, "/cluster-test");
-  
+
   MappedEtcdDirectory<NodeData> directory;
   private EtcdDirectoryDao<NodeData> dao;
-  
+
   @Before
   public void setUp() {
-    directory = factoryRule
-      .getFactory()
-      .newDirectory("/test/data", new TypeReference<NodeData>(){});
-    
+    directory = factoryRule.getFactory().newDirectory("/test/data", new TypeReference<NodeData>() {
+    });
+
     dao = directory.newDao();
   }
-  
+
   public void tearDown() {
     dao.resetDirectory();
   }
 
-  @Test(expected=KeyNotFound.class)
+  @Test(expected = KeyNotFound.class)
   public void shouldThrowKeyNotFound() {
     dao.get("undefined");
   }
-  
+
   public static class NodeData {
     protected String name;
 
@@ -63,20 +62,20 @@ public class EtcdDirectoryIT {
       return name;
     }
 
-    public void setName( String name ) {
+    public void setName(String name) {
       this.name = name;
     }
-    
-    public NodeData withName( String name ) {
+
+    public NodeData withName(String name) {
       this.name = name;
       return this;
     }
-    
+
     public String toString() {
       return ToStringBuilder.reflectionToString(this);
     }
-    
-    public boolean equals( Object o ) {
+
+    public boolean equals(Object o) {
       return EqualsBuilder.reflectionEquals(this, o);
     }
   }

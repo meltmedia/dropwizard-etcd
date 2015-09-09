@@ -49,13 +49,14 @@ public class Commands {
       String name = namespace.getString("name");
 
       Response response =
-          ClientBuilder
-              .newClient()
-              .target(host)
-              .path("hello")
-              .request()
-              .post(Entity.json(new ClusterProcess().withConfiguration(JsonNodeFactory.instance.objectNode().put(
-                      "name", name))));
+        ClientBuilder
+          .newClient()
+          .target(host)
+          .path("hello")
+          .request()
+          .post(
+            Entity.json(new ClusterProcess().withConfiguration(JsonNodeFactory.instance
+              .objectNode().put("name", name))));
 
       if (response.getStatus() != 201) {
         System.err.printf("unexpected status code %d%n", response.getStatus());
@@ -94,7 +95,8 @@ public class Commands {
       }
 
       List<ClusterProcess> processList =
-          response.readEntity(new GenericType<List<ClusterProcess>>(){});
+        response.readEntity(new GenericType<List<ClusterProcess>>() {
+        });
 
       if (processList.size() == 0) {
         System.err.println("not found");
@@ -107,7 +109,7 @@ public class Commands {
 
       if (delete.getStatus() != 204) {
         System.err.printf("unexpected status code %d deleting process %s%n", response.getStatus(),
-            id);
+          id);
         System.exit(1);
       }
 
@@ -142,7 +144,7 @@ public class Commands {
 
       response.readEntity(new GenericType<List<ClusterProcess>>() {
       }).stream().map(process -> process.getConfiguration().get("name"))
-          .forEach(System.out::println);
+        .forEach(System.out::println);
 
       System.exit(0);
     }

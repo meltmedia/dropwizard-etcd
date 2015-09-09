@@ -28,9 +28,7 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 public class EtcdEvent<T> {
 
   public static enum Type {
-    added,
-    removed,
-    updated;
+    added, removed, updated;
   }
 
   public static class Builder<T> {
@@ -41,41 +39,41 @@ public class EtcdEvent<T> {
     private Throwable cause;
     private Long index;
 
-    public EtcdEvent.Builder<T> withValue( T value ) {
+    public EtcdEvent.Builder<T> withValue(T value) {
       this.value = value;
       return this;
     }
-    
-    public EtcdEvent.Builder<T> withPrevValue( T prevValue ) {
+
+    public EtcdEvent.Builder<T> withPrevValue(T prevValue) {
       this.prevValue = prevValue;
       return this;
     }
-    
-    public EtcdEvent.Builder<T> withType( EtcdEvent.Type type ) {
+
+    public EtcdEvent.Builder<T> withType(EtcdEvent.Type type) {
       this.type = type;
       return this;
     }
-    
-    public EtcdEvent.Builder<T> withKey( String key ) {
+
+    public EtcdEvent.Builder<T> withKey(String key) {
       this.key = key;
       return this;
     }
-    
-    public EtcdEvent.Builder<T> withIndex( Long index ) {
+
+    public EtcdEvent.Builder<T> withIndex(Long index) {
       this.index = index;
       return this;
     }
-    
-    public EtcdEvent.Builder<T> withCause( Throwable cause ) {
+
+    public EtcdEvent.Builder<T> withCause(Throwable cause) {
       this.cause = cause;
       return this;
     }
-    
+
     public EtcdEvent<T> build() {
       return new EtcdEvent<T>(type, index, key, value, prevValue, cause);
     }
   }
-  
+
   public static <T> EtcdEvent.Builder<T> builder() {
     return new EtcdEvent.Builder<T>();
   }
@@ -86,8 +84,9 @@ public class EtcdEvent<T> {
   private Throwable cause;
   private String key;
   private Long index;
-  
-  public EtcdEvent( EtcdEvent.Type type, Long index, String key, T value, T prevValue, Throwable cause ) {
+
+  public EtcdEvent(EtcdEvent.Type type, Long index, String key, T value, T prevValue,
+    Throwable cause) {
     this.type = type;
     this.index = index;
     this.key = key;
@@ -95,19 +94,36 @@ public class EtcdEvent<T> {
     this.prevValue = prevValue;
     this.cause = cause;
   }
-  
-  public EtcdEvent.Type getType() { return this.type; }
-  public String getKey() { return this.key; }
-  public Long getIndex() { return this.index; }
-  public T getValue() { return this.value; }
-  public T getPrevValue() { return this.prevValue; }
-  public Throwable getCause() { return this.cause; }
+
+  public EtcdEvent.Type getType() {
+    return this.type;
+  }
+
+  public String getKey() {
+    return this.key;
+  }
+
+  public Long getIndex() {
+    return this.index;
+  }
+
+  public T getValue() {
+    return this.value;
+  }
+
+  public T getPrevValue() {
+    return this.prevValue;
+  }
+
+  public Throwable getCause() {
+    return this.cause;
+  }
 
   public String toString() {
     return ToStringBuilder.reflectionToString(this);
   }
-  
-  public boolean equals( Object o ) {
+
+  public boolean equals(Object o) {
     return EqualsBuilder.reflectionEquals(this, o);
   }
 }
