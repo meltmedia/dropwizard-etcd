@@ -181,16 +181,16 @@ public class WatchService {
           // get the next event.
         EtcdKeysResponse response =
           client.get().getDir(directory).recursive()
-            .waitForChange(lock.read((Callable<Long>) () -> watchIndex.get()))
+            .waitForChange(lock.readCallable(() -> watchIndex.get()).call())
             .timeout(timeout, timeoutUnit).send().get();
 
         logger.debug("received update for {} at {}", key(response), response.etcdIndex);
 
-        lock.write(() -> {
+        lock.writeRunnable(() -> {
           if (watchIndex.compareAndSet(nextIndex, response.node.modifiedIndex)) {
             watchers.forEach(w -> w.accept(response));
           }
-        });
+        }).run();
       } catch (InterruptedException ie) {
         logger.info("etcd watch interrupted");
       } catch( EtcdException etcdException ) {
@@ -207,18 +207,18 @@ public class WatchService {
   }
 
   protected void addWatch(Watch watch) {
-    lock.write(() -> {
+    lock.writeRunnable(() -> {
       logger.debug("Adding watch.");
       watch.init();
       watchers.add(watch);
       watchIndex.set(min(watchIndex.get(), watch.currentIndex()));
-    });
+    }).run();
   }
 
   protected void removeWatch(Watch watch) {
-    lock.write(() -> {
+    lock.writeRunnable(() -> {
       watchers.remove(watch);
-    });
+    }).run();
   }
 
   protected void stopWatchingNodes() {

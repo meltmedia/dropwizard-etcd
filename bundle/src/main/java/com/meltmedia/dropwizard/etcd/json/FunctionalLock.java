@@ -9,59 +9,71 @@ public class FunctionalLock {
   ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
   Lock read = stateLock.readLock();
   Lock write = stateLock.writeLock();
+  
+  public <T> Callable<T> readCallable(Callable<T> callable) {
+    return (Callable<T>)() -> {
+      read.lock();
+      try {
+        return callable.call();
+      } finally {
+        read.unlock();
+      }      
+    };
+  }
 
-  protected <T> T read(Callable<T> callable) throws Exception {
+  public <E extends Exception> RunnableWithException<E> readRunnable(RunnableWithException<E> r, Class<E> e) {
+    return () -> {
+      read.lock();
+      try {
+        r.run();
+      } finally {
+        read.unlock();
+      }
+    };
+  }
+
+  public Runnable readRunnable(Runnable r) {
+    return ()->{
     read.lock();
+    try {
+      r.run();
+    } finally {
+      read.unlock();
+    }
+    };
+  }
+
+  public <E extends Exception> RunnableWithException<E> writeRunnable(RunnableWithException<E> r, Class<E> e) {
+    return () -> {
+    write.lock();
+    try {
+      r.run();
+    } finally {
+      write.unlock();
+    }
+    };
+  }
+
+  public Runnable writeRunnable(Runnable r) {
+    return ()->{
+    write.lock();
+    try {
+      r.run();
+    } finally {
+      write.unlock();
+    }
+    };
+  }
+
+  protected <T> Callable<T> writeCallable(Callable<T> callable) {
+    return ()->{
+    write.lock();
     try {
       return callable.call();
     } finally {
-      read.unlock();
-    }
-  }
-
-  protected <E extends Exception> void read(RunnableWithException<E> r, Class<E> e) throws E {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected void read(Runnable r) {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <E extends Exception> void write(RunnableWithException<E> r, Class<E> e) throws E {
-    write.lock();
-    try {
-      r.run();
-    } finally {
       write.unlock();
     }
-  }
-
-  protected void write(Runnable r) {
-    write.lock();
-    try {
-      r.run();
-    } finally {
-      write.unlock();
-    }
-  }
-
-  protected <T> T write(Callable<T> callable) throws Exception {
-    write.lock();
-    try {
-      return callable.call();
-    } finally {
-      write.unlock();
-    }
+    };
   }
   
   protected <T> T write(Supplier<T> supplier) {
