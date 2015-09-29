@@ -40,6 +40,7 @@ import mousio.etcd4j.responses.EtcdKeysResponse.EtcdNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
@@ -58,6 +59,7 @@ public class WatchService {
     private String directory;
     private ScheduledExecutorService executor;
     private ObjectMapper mapper;
+    private MetricRegistry registry;
 
     public Builder withEtcdClient(Supplier<EtcdClient> client) {
       this.client = client;
@@ -78,9 +80,17 @@ public class WatchService {
       this.mapper = mapper;
       return this;
     }
+    
+    public Builder withMetricRegistry( MetricRegistry registry ) {
+      this.registry = registry;
+      return this;
+    }
 
     public WatchService build() {
-      return new WatchService(client, directory, mapper, executor);
+      if( registry == null ) {
+        throw new IllegalStateException("metric registry is required");
+      }
+      return new WatchService(client, directory, mapper, executor, registry);
     }
   }
 
@@ -94,7 +104,7 @@ public class WatchService {
   private List<Watch> watchers = Lists.newCopyOnWriteArrayList();
 
   protected WatchService(Supplier<EtcdClient> client, String directory, ObjectMapper mapper,
-    ScheduledExecutorService executor) {
+    ScheduledExecutorService executor, MetricRegistry registry) {
     this.client = client;
     this.directory = directory;
     this.mapper = mapper;
