@@ -39,6 +39,7 @@ import static com.meltmedia.dropwizard.etcd.json.EtcdMatchers.*;
 
 public class EtcdWatchServiceIT {
   public static final String BASE_PATH = "/talu-twitter-streams/it";
+  public static final String NOISE_BASE_PATH = "/talu-twitter-streams/noise";
   @ClassRule
   public static EtcdClientRule clientRule = new EtcdClientRule("http://127.0.0.1:2379");
   @Rule
@@ -48,6 +49,7 @@ public class EtcdWatchServiceIT {
   };
 
   public EtcdDirectoryDao<NodeData> jobsDao;
+  public EtcdDirectoryDao<NodeData> noiseDirDao;
   public ObjectMapper mapper;
 
   @Before
@@ -57,6 +59,11 @@ public class EtcdWatchServiceIT {
     jobsDao =
       new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/jobs", mapper,
         NODE_DATA_TYPE);
+    
+    noiseDirDao = 
+      new EtcdDirectoryDao<NodeData>(clientRule::getClient, NOISE_BASE_PATH + "/jobs", mapper,
+        NODE_DATA_TYPE);
+
   }
 
   @SuppressWarnings("unchecked")
@@ -261,7 +268,38 @@ public class EtcdWatchServiceIT {
     } finally {
       events.join();
     }
+  }
+  
+  @SuppressWarnings("unchecked")
+  @Test
+  public void shouldWatchSingleFileWithNoise() throws InterruptedException {
+    int eventsCount = 100;
+    // add a directory watch.
+    WatchService service = serviceRule.getService();
 
+    EtcdEventHandler<NodeData> handler = mock(EtcdEventHandler.class);
+
+    EtcdDirectoryDao<NodeData> dirDao =
+      new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/dir", mapper,
+        NODE_DATA_TYPE);
+    
+    startNodeDataThread(noiseDirDao, 2000).join();
+    
+    Thread events = startNodeDataThread(dirDao, eventsCount);
+
+    try {
+      service.registerValueWatch("/dir", "10", new TypeReference<NodeData>() {
+      }, handler);
+
+      verify(handler, timeout(10000)).handle(
+        atAnyIndex(EtcdEvent.<NodeData> builder().withKey("10").withType(EtcdEvent.Type.added)
+          .withValue(new NodeData().withName("10")).build()));
+
+      verify(handler, times(1)).handle(any(EtcdEvent.class));
+
+    } finally {
+      events.join();
+    }
   }
 
   @Test

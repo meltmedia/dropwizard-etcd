@@ -28,7 +28,6 @@ import org.junit.runners.model.Statement;
 import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
-import static org.mockito.Mockito.*;
 
 public class EtcdWatchServiceRule implements TestRule {
 
@@ -59,7 +58,7 @@ public class EtcdWatchServiceRule implements TestRule {
 
           service =
             WatchService.builder().withEtcdClient(clientSupplier).withDirectory(directory)
-              .withExecutor(executor).withMapper(mapper).withMetricRegistry(mock(MetricRegistry.class)).build();
+              .withExecutor(executor).withMapper(mapper).withMetricRegistry(new MetricRegistry()).build();
 
           service.start();
 
