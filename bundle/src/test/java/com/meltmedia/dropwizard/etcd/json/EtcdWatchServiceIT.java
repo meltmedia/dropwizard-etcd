@@ -283,7 +283,7 @@ public class EtcdWatchServiceIT {
       new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/dir", mapper,
         NODE_DATA_TYPE);
     
-    startNodeDataThread(noiseDirDao, 2000).join();
+    startNodeDataThread(noiseDirDao, 4000).join();
     
     Thread events = startNodeDataThread(dirDao, eventsCount);
 
