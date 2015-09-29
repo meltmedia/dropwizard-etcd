@@ -10,8 +10,19 @@ public class FunctionalLock {
   Lock read = stateLock.readLock();
   Lock write = stateLock.writeLock();
   
+  public <T> Supplier<T> readSupplier(Supplier<T> supplier) {
+    return () -> {
+      read.lock();
+      try {
+        return supplier.get();
+      } finally {
+        read.unlock();
+      }      
+    };
+  }
+  
   public <T> Callable<T> readCallable(Callable<T> callable) {
-    return (Callable<T>)() -> {
+    return () -> {
       read.lock();
       try {
         return callable.call();
