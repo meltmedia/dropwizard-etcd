@@ -226,8 +226,8 @@ public class WatchService {
 
         logger.debug("received update for {} at {}", key(response), response.etcdIndex);
 
-        read(() -> {
-          if (nextIndex == watchIndex.get()) {
+        write(() -> {
+          if (watchIndex.compareAndSet(nextIndex, response.node.modifiedIndex)) {
             watchers.forEach(w -> w.accept(response));
           }
         });
