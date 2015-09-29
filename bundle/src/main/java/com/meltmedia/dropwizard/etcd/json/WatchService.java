@@ -157,83 +157,19 @@ public class WatchService {
     logger.debug("stopped watch for {}", directory);
   }
 
-  ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
-  Lock read = stateLock.readLock();
-  Lock write = stateLock.writeLock();
-
-  protected <T> T read(Callable<T> callable) throws Exception {
-    read.lock();
-    try {
-      return callable.call();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <E extends Exception> void read(RunnableWithException<E> r, Class<E> e) throws E {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected void read(Runnable r) {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <E extends Exception> void write(RunnableWithException<E> r, Class<E> e) throws E {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected void write(Runnable r) {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <T> T write(Callable<T> callable) throws Exception {
-    read.lock();
-    try {
-      return callable.call();
-    } finally {
-      read.unlock();
-    }
-  }
-  
-  protected <T> T write(Supplier<T> supplier) {
-    write.lock();
-    try {
-      return supplier.get();
-    } finally {
-      write.unlock();
-    }
-  }
 
   public interface RunnableWithException<E extends Exception> {
     public void run() throws E;
   }
+  
+  FunctionalLock lock = new FunctionalLock();
 
   protected long getWatchIndex() {
-    read.lock();
+    lock.read.lock();
     try {
       return watchIndex.get();
     } finally {
-      read.unlock();
+      lock.read.unlock();
     }
   }
 
@@ -243,18 +179,18 @@ public class WatchService {
       executor.scheduleWithFixedDelay(() -> {
         logger.debug(format("watch returned for %s", watchIndex.get()));
 
-        long nextIndex = write((Supplier<Long>) () -> watchIndex.incrementAndGet());
+        long nextIndex = lock.write((Supplier<Long>) () -> watchIndex.incrementAndGet());
         try {
 
           // get the next event.
         EtcdKeysResponse response =
           client.get().getDir(directory).recursive()
-            .waitForChange(read((Callable<Long>) () -> watchIndex.get()))
+            .waitForChange(lock.read((Callable<Long>) () -> watchIndex.get()))
             .timeout(timeout, timeoutUnit).send().get();
 
         logger.debug("received update for {} at {}", key(response), response.etcdIndex);
 
-        write(() -> {
+        lock.write(() -> {
           if (watchIndex.compareAndSet(nextIndex, response.node.modifiedIndex)) {
             watchers.forEach(w -> w.accept(response));
           }
@@ -275,7 +211,7 @@ public class WatchService {
   }
 
   protected void addWatch(Watch watch) {
-    write(() -> {
+    lock.write(() -> {
       logger.debug("Adding watch.");
       watch.init();
       watchers.add(watch);
@@ -284,7 +220,7 @@ public class WatchService {
   }
 
   protected void removeWatch(Watch watch) {
-    write(() -> {
+    lock.write(() -> {
       watchers.remove(watch);
     });
   }
