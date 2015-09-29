@@ -5,8 +5,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
-import com.meltmedia.dropwizard.etcd.json.WatchService.RunnableWithException;
-
 public class FunctionalLock {
   ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
   Lock read = stateLock.readLock();
@@ -40,29 +38,29 @@ public class FunctionalLock {
   }
 
   protected <E extends Exception> void write(RunnableWithException<E> r, Class<E> e) throws E {
-    read.lock();
+    write.lock();
     try {
       r.run();
     } finally {
-      read.unlock();
+      write.unlock();
     }
   }
 
   protected void write(Runnable r) {
-    read.lock();
+    write.lock();
     try {
       r.run();
     } finally {
-      read.unlock();
+      write.unlock();
     }
   }
 
   protected <T> T write(Callable<T> callable) throws Exception {
-    read.lock();
+    write.lock();
     try {
       return callable.call();
     } finally {
-      read.unlock();
+      write.unlock();
     }
   }
   

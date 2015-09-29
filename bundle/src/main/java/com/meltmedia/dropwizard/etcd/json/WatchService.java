@@ -158,10 +158,6 @@ public class WatchService {
   }
 
 
-  public interface RunnableWithException<E extends Exception> {
-    public void run() throws E;
-  }
-  
   FunctionalLock lock = new FunctionalLock();
 
   protected long getWatchIndex() {
