@@ -16,6 +16,8 @@
 package com.meltmedia.dropwizard.etcd.json;
 
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.apache.commons.lang.builder.ToStringBuilder;
@@ -39,7 +41,7 @@ import static com.meltmedia.dropwizard.etcd.json.EtcdMatchers.*;
 
 public class EtcdWatchServiceIT {
   public static final String BASE_PATH = "/talu-twitter-streams/it";
-  public static final String NOISE_BASE_PATH = "/talu-twitter-streams/noise";
+  public static final String EXTERNAL_NOISE_BASE_PATH = "/talu-twitter-streams/noise";
   @ClassRule
   public static EtcdClientRule clientRule = new EtcdClientRule("http://127.0.0.1:2379");
   @Rule
@@ -47,9 +49,10 @@ public class EtcdWatchServiceIT {
     BASE_PATH);
   public static TypeReference<NodeData> NODE_DATA_TYPE = new TypeReference<NodeData>() {
   };
+  public static TypeReference<NoiseDocument> NOISE_DATA_TYPE = new TypeReference<NoiseDocument>() {};
 
   public EtcdDirectoryDao<NodeData> jobsDao;
-  public EtcdDirectoryDao<NodeData> noiseDirDao;
+  public EtcdDirectoryDao<NoiseDocument> externalNoiseDao;
   public ObjectMapper mapper;
 
   @Before
@@ -60,9 +63,9 @@ public class EtcdWatchServiceIT {
       new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/jobs", mapper,
         NODE_DATA_TYPE);
     
-    noiseDirDao = 
-      new EtcdDirectoryDao<NodeData>(clientRule::getClient, NOISE_BASE_PATH + "/jobs", mapper,
-        NODE_DATA_TYPE);
+    externalNoiseDao = 
+      new EtcdDirectoryDao<NoiseDocument>(clientRule::getClient, EXTERNAL_NOISE_BASE_PATH, mapper,
+        NOISE_DATA_TYPE);
 
   }
 
@@ -283,7 +286,7 @@ public class EtcdWatchServiceIT {
       new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/dir", mapper,
         NODE_DATA_TYPE);
     
-    startNodeDataThread(noiseDirDao, 4000).join();
+    startNoiseThread(externalNoiseDao, 4000).join();
     
     Thread events = startNodeDataThread(dirDao, eventsCount);
 
@@ -299,6 +302,37 @@ public class EtcdWatchServiceIT {
 
     } finally {
       events.join();
+    }
+  }
+  
+  @SuppressWarnings("unchecked")
+  @Test
+  public void shouldWatchSingleFileWithNoiseAndTimeout() throws InterruptedException {
+    int eventsCount = 100;
+    // add a directory watch.
+    WatchService service = serviceRule.getService();
+
+    CountDownLatch latch = new CountDownLatch(eventsCount);
+    EtcdEventHandler<NodeData> handler = (event)->{
+      latch.countDown();
+    };
+
+    EtcdDirectoryDao<NodeData> dirDao =
+      new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/dir", mapper,
+        NODE_DATA_TYPE);
+    
+    service.registerDirectoryWatch("/dir", NODE_DATA_TYPE, handler);
+
+    Thread noiseThread = startNoiseThread(externalNoiseDao, 4000);
+    Thread waitThread = startWaitThread(1, TimeUnit.SECONDS);
+    
+    noiseThread.join();
+    waitThread.join();
+      
+    startNodeDataThread(dirDao, eventsCount).join();
+
+    if( !latch.await(10, TimeUnit.SECONDS) ) {
+      throw new IllegalStateException("could not catch up with state.");
     }
   }
 
@@ -355,13 +389,23 @@ public class EtcdWatchServiceIT {
                 new NoiseDocument().withNoise(String.valueOf(i)));
               break;
             case 3:
-              dao.putDir("noise_" + String.valueOf(i));
+              dao.putDir("/noise_" + String.valueOf(i));
               break;
           }
         }
       });
     events.start();
     return events;
+  }
+  
+  public static Thread startWaitThread(long timeout, TimeUnit unit) {
+    Thread waitThread = new Thread(()->{try {
+      unit.sleep(timeout);
+    } catch( Exception e ) {
+      // oh well!
+    }});
+    waitThread.start();
+    return waitThread;
   }
 
   public static void verifySequentialNodeData(EtcdEventHandler<NodeData> handler, int count) {

@@ -44,6 +44,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import com.meltmedia.dropwizard.etcd.json.WatchService.Builder;
 
 /**
  * A service for watching changes on Etcd with JSON content stored in the values.
@@ -60,6 +61,8 @@ public class WatchService {
     private ScheduledExecutorService executor;
     private ObjectMapper mapper;
     private MetricRegistry registry;
+    private long timeout = 30L;
+    private TimeUnit timeoutUnit = TimeUnit.SECONDS;
 
     public Builder withEtcdClient(Supplier<EtcdClient> client) {
       this.client = client;
@@ -86,11 +89,23 @@ public class WatchService {
       return this;
     }
 
+    public Builder withWatchTimeout( long timeout, TimeUnit timeoutUnit ) {
+      this.timeout = timeout;
+      this.timeoutUnit = timeoutUnit;
+      return this;
+    }
+
     public WatchService build() {
       if( registry == null ) {
         throw new IllegalStateException("metric registry is required");
       }
-      return new WatchService(client, directory, mapper, executor, registry);
+      if( timeout <= 0L ) {
+        throw new IllegalStateException("timeout must be positive");
+      }
+      if( timeoutUnit == null ) {
+        throw new IllegalStateException("timeout unit is required");
+      }
+      return new WatchService(client, directory, mapper, executor, registry, timeout, timeoutUnit);
     }
   }
 
@@ -98,17 +113,21 @@ public class WatchService {
   private ObjectMapper mapper;
   private String directory;
   private ScheduledExecutorService executor;
+  private long timeout;
+  private TimeUnit timeoutUnit;
 
   private ScheduledFuture<?> watchFuture;
   private AtomicLong watchIndex = new AtomicLong();
   private List<Watch> watchers = Lists.newCopyOnWriteArrayList();
 
   protected WatchService(Supplier<EtcdClient> client, String directory, ObjectMapper mapper,
-    ScheduledExecutorService executor, MetricRegistry registry) {
+    ScheduledExecutorService executor, MetricRegistry registry, long timeout, TimeUnit timeoutUnit) {
     this.client = client;
     this.directory = directory;
     this.mapper = mapper;
     this.executor = executor;
+    this.timeout = timeout;
+    this.timeoutUnit = timeoutUnit;
   }
 
   public <T> Watch registerDirectoryWatch(String directory, TypeReference<T> type,
@@ -195,6 +214,15 @@ public class WatchService {
       read.unlock();
     }
   }
+  
+  protected <T> T write(Supplier<T> supplier) {
+    write.lock();
+    try {
+      return supplier.get();
+    } finally {
+      write.unlock();
+    }
+  }
 
   public interface RunnableWithException<E extends Exception> {
     public void run() throws E;
@@ -215,14 +243,14 @@ public class WatchService {
       executor.scheduleWithFixedDelay(() -> {
         logger.debug(format("watch returned for %s", watchIndex.get()));
 
+        long nextIndex = write((Supplier<Long>) () -> watchIndex.incrementAndGet());
         try {
 
-          long nextIndex = write((Callable<Long>) () -> watchIndex.incrementAndGet());
           // get the next event.
         EtcdKeysResponse response =
           client.get().getDir(directory).recursive()
             .waitForChange(read((Callable<Long>) () -> watchIndex.get()))
-            .timeout(30, TimeUnit.SECONDS).send().get();
+            .timeout(timeout, timeoutUnit).send().get();
 
         logger.debug("received update for {} at {}", key(response), response.etcdIndex);
 
@@ -233,6 +261,13 @@ public class WatchService {
         });
       } catch (InterruptedException ie) {
         logger.info("etcd watch interrupted");
+      } catch( EtcdException etcdException ) {
+        if( etcdException.errorCode == 401 ) {
+          watchIndex.compareAndSet(nextIndex, etcdException.index);
+        }
+        else {
+          logger.warn(format("exception thrown while watching %s", directory), etcdException);          
+        }
       } catch (Exception e) {
         logger.warn(format("exception thrown while watching %s", directory), e);
       }
