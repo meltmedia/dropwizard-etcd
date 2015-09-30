@@ -17,6 +17,7 @@ package com.meltmedia.dropwizard.etcd.json;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import mousio.etcd4j.EtcdClient;
@@ -25,6 +26,7 @@ import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
 
@@ -57,7 +59,7 @@ public class EtcdWatchServiceRule implements TestRule {
 
           service =
             WatchService.builder().withEtcdClient(clientSupplier).withDirectory(directory)
-              .withExecutor(executor).withMapper(mapper).build();
+              .withExecutor(executor).withMapper(mapper).withMetricRegistry(new MetricRegistry()).withWatchTimeout(10, TimeUnit.MILLISECONDS).build();
 
           service.start();
 

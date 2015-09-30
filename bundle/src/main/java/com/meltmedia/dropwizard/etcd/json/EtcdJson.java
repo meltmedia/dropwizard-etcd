@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import mousio.etcd4j.EtcdClient;
 
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -39,6 +40,7 @@ public class EtcdJson {
     private Supplier<EtcdClient> clientSupplier;
     private String baseDirectory = "";
     private ScheduledExecutorService executor;
+    private MetricRegistry registry;
 
     public Builder withMapper(ObjectMapper mapper) {
       this.mapper = mapper;
@@ -59,9 +61,14 @@ public class EtcdJson {
       this.executor = executor;
       return this;
     }
+    
+    public Builder withMetricRegistry( MetricRegistry registry ) {
+      this.registry = registry;
+      return this;
+    }
 
     public EtcdJson build() {
-      return new EtcdJson(clientSupplier, executor, mapper, baseDirectory);
+      return new EtcdJson(clientSupplier, executor, mapper, baseDirectory, registry);
     }
   }
 
@@ -76,14 +83,14 @@ public class EtcdJson {
   private ScheduledExecutorService executor;
 
   public EtcdJson(Supplier<EtcdClient> clientSupplier, ScheduledExecutorService executor,
-    ObjectMapper mapper, String baseDirectory) {
+    ObjectMapper mapper, String baseDirectory, MetricRegistry registry) {
     this.clientSupplier = clientSupplier;
     this.executor = executor;
     this.mapper = mapper;
     this.baseDirectory = baseDirectory;
     this.watchService =
       WatchService.builder().withEtcdClient(clientSupplier).withExecutor(executor)
-        .withMapper(mapper).withDirectory(baseDirectory).build();
+        .withMapper(mapper).withDirectory(baseDirectory).withMetricRegistry(registry).build();
   }
 
   public void start() {

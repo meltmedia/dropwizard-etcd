@@ -25,6 +25,7 @@ import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.joda.JodaModule;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson;
@@ -58,7 +59,7 @@ public class EtcdJsonRule implements TestRule {
 
           factory =
             EtcdJson.builder().withClient(clientSupplier).withBaseDirectory(directory)
-              .withExecutor(executor).withMapper(mapper).build();
+              .withExecutor(executor).withMapper(mapper).withMetricRegistry(new MetricRegistry()).build();
 
           factory.start();
 

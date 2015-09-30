@@ -20,6 +20,7 @@ import static java.lang.String.format;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
@@ -40,9 +41,14 @@ import mousio.etcd4j.responses.EtcdKeysResponse.EtcdNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.meltmedia.dropwizard.etcd.json.WatchService.Builder;
 
 /**
  * A service for watching changes on Etcd with JSON content stored in the values.
@@ -58,6 +64,9 @@ public class WatchService {
     private String directory;
     private ScheduledExecutorService executor;
     private ObjectMapper mapper;
+    private MetricRegistry registry;
+    private long timeout = 30L;
+    private TimeUnit timeoutUnit = TimeUnit.SECONDS;
 
     public Builder withEtcdClient(Supplier<EtcdClient> client) {
       this.client = client;
@@ -78,9 +87,29 @@ public class WatchService {
       this.mapper = mapper;
       return this;
     }
+    
+    public Builder withMetricRegistry( MetricRegistry registry ) {
+      this.registry = registry;
+      return this;
+    }
+
+    public Builder withWatchTimeout( long timeout, TimeUnit timeoutUnit ) {
+      this.timeout = timeout;
+      this.timeoutUnit = timeoutUnit;
+      return this;
+    }
 
     public WatchService build() {
-      return new WatchService(client, directory, mapper, executor);
+      if( registry == null ) {
+        throw new IllegalStateException("metric registry is required");
+      }
+      if( timeout <= 0L ) {
+        throw new IllegalStateException("timeout must be positive");
+      }
+      if( timeoutUnit == null ) {
+        throw new IllegalStateException("timeout unit is required");
+      }
+      return new WatchService(client, directory, mapper, executor, registry, timeout, timeoutUnit);
     }
   }
 
@@ -88,17 +117,30 @@ public class WatchService {
   private ObjectMapper mapper;
   private String directory;
   private ScheduledExecutorService executor;
+  private long timeout;
+  private TimeUnit timeoutUnit;
 
   private ScheduledFuture<?> watchFuture;
-  private AtomicLong watchIndex = new AtomicLong();
+  private AtomicLong syncIndex = new AtomicLong(); // the index to which we are synchronized.
+  private AtomicLong etcdIndex = new AtomicLong(); // the last etcd index we have seen.
   private List<Watch> watchers = Lists.newCopyOnWriteArrayList();
+  private FunctionalLock lock = new FunctionalLock();
+  private Meter watchEvents;
+  private Meter resyncEvents;
 
   protected WatchService(Supplier<EtcdClient> client, String directory, ObjectMapper mapper,
-    ScheduledExecutorService executor) {
+    ScheduledExecutorService executor, MetricRegistry registry, long timeout, TimeUnit timeoutUnit) {
     this.client = client;
     this.directory = directory;
     this.mapper = mapper;
     this.executor = executor;
+    this.timeout = timeout;
+    this.timeoutUnit = timeoutUnit;
+    registry.register(MetricRegistry.name(WatchService.class, "etcdIndex"), (Gauge<Long>)()->etcdIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, "watchIndex"), (Gauge<Long>)()->syncIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, "indexDelta"), (Gauge<Long>)()->etcdIndex.get()-syncIndex.get());
+    watchEvents = registry.meter(MetricRegistry.name(WatchService.class, "watchEvents"));
+    resyncEvents = registry.meter(MetricRegistry.name(WatchService.class, "resyncEvents"));
   }
 
   public <T> Watch registerDirectoryWatch(String directory, TypeReference<T> type,
@@ -128,74 +170,12 @@ public class WatchService {
     logger.debug("stopped watch for {}", directory);
   }
 
-  ReentrantReadWriteLock stateLock = new ReentrantReadWriteLock();
-  Lock read = stateLock.readLock();
-  Lock write = stateLock.writeLock();
-
-  protected <T> T read(Callable<T> callable) throws Exception {
-    read.lock();
-    try {
-      return callable.call();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <E extends Exception> void read(RunnableWithException<E> r, Class<E> e) throws E {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected void read(Runnable r) {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <E extends Exception> void write(RunnableWithException<E> r, Class<E> e) throws E {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected void write(Runnable r) {
-    read.lock();
-    try {
-      r.run();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  protected <T> T write(Callable<T> callable) throws Exception {
-    read.lock();
-    try {
-      return callable.call();
-    } finally {
-      read.unlock();
-    }
-  }
-
-  public interface RunnableWithException<E extends Exception> {
-    public void run() throws E;
-  }
-
   protected long getWatchIndex() {
-    read.lock();
+    lock.read.lock();
     try {
-      return watchIndex.get();
+      return syncIndex.get();
     } finally {
-      read.unlock();
+      lock.read.unlock();
     }
   }
 
@@ -203,26 +183,40 @@ public class WatchService {
     logger.debug("starting watch thread.");
     watchFuture =
       executor.scheduleWithFixedDelay(() -> {
-        logger.debug(format("watch returned for %s", watchIndex.get()));
+        logger.debug(format("watch returned for %s", syncIndex.get()));
 
+        long currIndex = lock.readSupplier(syncIndex::get).get();
         try {
-
-          long nextIndex = write((Callable<Long>) () -> watchIndex.incrementAndGet());
           // get the next event.
-        EtcdKeysResponse response =
-          client.get().getDir(directory).recursive()
-            .waitForChange(read((Callable<Long>) () -> watchIndex.get()))
-            .timeout(30, TimeUnit.SECONDS).send().get();
+          EtcdKeysResponse response =
+            client.get().getDir(directory)
+              .recursive()
+              .waitForChange(currIndex+1)
+              .timeout(timeout, timeoutUnit)
+              .send()
+              .get();
+          
+          watchEvents.mark();
 
-        logger.debug("received update for {} at {}", key(response), response.etcdIndex);
-
-        read(() -> {
-          if (nextIndex == watchIndex.get()) {
+        lock.writeRunnable(() -> {
+          etcdIndex.set(response.etcdIndex);
+          if (syncIndex.compareAndSet(currIndex, response.node.modifiedIndex)) {
             watchers.forEach(w -> w.accept(response));
           }
-        });
-      } catch (InterruptedException ie) {
-        logger.info("etcd watch interrupted");
+        }).run();
+      } catch( EtcdException etcdException ) {
+        // we don't know what the state is, resync.
+        resyncEvents.mark();
+        ensureDirectoryExists();
+        lock.writeRunnable(()->{
+          etcdIndex.set(etcdException.index);
+          syncIndex.set(watchers.stream()
+            .mapToLong(w->w.sync().currentIndex())
+            .min()
+            .orElse(etcdException.index));
+        }).run();
+      } catch (TimeoutException e) {
+        logger.debug("etcd watch timed out");
       } catch (Exception e) {
         logger.warn(format("exception thrown while watching %s", directory), e);
       }
@@ -230,18 +224,17 @@ public class WatchService {
   }
 
   protected void addWatch(Watch watch) {
-    write(() -> {
-      logger.debug("Adding watch.");
-      watch.init();
+    lock.writeRunnable(() -> {
+      watch.sync();
       watchers.add(watch);
-      watchIndex.set(min(watchIndex.get(), watch.currentIndex()));
-    });
+      syncIndex.set(min(syncIndex.get(), watch.currentIndex()));
+    }).run();
   }
 
   protected void removeWatch(Watch watch) {
-    write(() -> {
+    lock.writeRunnable(() -> {
       watchers.remove(watch);
-    });
+    }).run();
   }
 
   protected void stopWatchingNodes() {
@@ -293,13 +286,25 @@ public class WatchService {
   }
 
   public interface Watch {
-    public void accept(EtcdKeysResponse response);
+    public Watch accept(EtcdKeysResponse response);
 
-    public void init();
+    public Watch sync();
 
     public Long currentIndex();
 
     public void stop();
+  }
+  
+  protected static class EtcdValue<T> {
+    T value;
+    long modifiedIndex;
+    long loadIndex;
+    
+    public EtcdValue( T value, long modifiedIndex, long loadIndex ) {
+      this.value = value;
+      this.modifiedIndex = modifiedIndex;
+      this.loadIndex = loadIndex;
+    }
   }
 
   public class DirectoryWatch<T> implements Watch {
@@ -308,6 +313,7 @@ public class WatchService {
     String directory;
     volatile Long currentIndex;
     Pattern keyMatcher;
+    Map<String, EtcdValue<T>> state = Maps.newHashMap();
 
     private DirectoryWatch(String directory, TypeReference<T> type, EtcdEventHandler<T> handler) {
       this.directory = directory;
@@ -324,7 +330,7 @@ public class WatchService {
       return currentIndex;
     }
 
-    public void init() {
+    public Watch sync() {
       try {
         EtcdKeysResponse dirList = client.get().getDir(directory).dir().send().get();
 
@@ -336,38 +342,91 @@ public class WatchService {
             .filter(n -> !n.dir)
             .forEach(
               node -> {
-                logger.debug("reading value for " + node.key);
-                T value = readValue(mapper, node, type);
-
-                if (value != null) {
-                  fireEvent(handler, EtcdEvent.<T> builder().withType(EtcdEvent.Type.added)
-                    .withValue(value).withKey(removeDirectory(directory, node.key)).build());
-                } else {
-                  logger.debug("No value to read for {}!", node.key);
-                }
+                  state.compute(removeDirectory(directory, node.key), (key, entry)->{
+                    T value = readValue(mapper, node, type);
+                    if(entry == null && value == null) return null;
+                    
+                    else if(entry == null) {
+                      fireEvent(handler, EtcdEvent.<T> builder()
+                        .withType(EtcdEvent.Type.added)
+                        .withValue(value)
+                        .withKey(key)
+                        .build());
+                      return new EtcdValue<T>(value, node.modifiedIndex, currentIndex);
+                    }
+                    else if(value == null) {
+                      fireEvent(handler, EtcdEvent.<T> builder()
+                        .withType(EtcdEvent.Type.removed)
+                        .withPrevValue(entry.value)
+                        .withKey(key)
+                        .build());
+                      return null;                     
+                    }
+                    else if( entry.modifiedIndex == node.modifiedIndex || entry.equals(value) ) {
+                      entry.loadIndex = currentIndex;
+                      return entry;
+                    }
+                    else {
+                      fireEvent(handler, EtcdEvent.<T> builder()
+                        .withType(EtcdEvent.Type.updated)
+                        .withValue(value)
+                        .withPrevValue(entry.value)
+                        .withKey(key)
+                        .build());
+                      return new EtcdValue<T>(value, node.modifiedIndex, currentIndex);
+                    }
+                  });
               });
-        }
+          }
+          state.replaceAll((key, entry)->{
+            if( entry.loadIndex == currentIndex ) return entry;
+            
+            fireEvent(handler, EtcdEvent.<T> builder()
+              .withType(EtcdEvent.Type.removed)
+              .withPrevValue(entry.value)
+              .withKey(key)
+              .build());
+            return null;             
+          });
       } catch (EtcdException ee) {
         logger.debug("exception during sync", ee);
         currentIndex = Long.valueOf((long) ee.index.intValue());
       } catch (IOException | TimeoutException e) {
         logger.error(format("faled to start watch for directory %s", directory), e);
       }
+      return this;
     }
 
-    public void accept(EtcdKeysResponse response) {
+    public Watch accept(EtcdKeysResponse response) {
       if (!keyMatcher.matcher(key(response)).matches()) {
-        return;
+        return this;
       }
 
       Long responseIndex = indexOf(response);
       if (currentIndex < responseIndex) {
-        asEvent(mapper, directory, response, type).ifPresent(handler::handle);
+        asEvent(mapper, directory, response, type).ifPresent(event->{
+          state.compute(event.getKey(), (key, entry)->{
+            switch( event.getType() ) {
+              case added:
+                fireEvent(handler, event);
+                return new EtcdValue<T>(event.getValue(), response.node.modifiedIndex, response.etcdIndex);
+              case updated:
+                fireEvent(handler, event);
+                return new EtcdValue<T>(event.getValue(), response.node.modifiedIndex, response.etcdIndex);
+              case removed:
+                fireEvent(handler, event);
+                return null;
+              default:
+                throw new IllegalStateException("unknown event type "+event.getType().name());
+            }
+          });
+        });
         currentIndex = responseIndex;
       } else {
         logger.debug("filtering event for {}", key(response));
         logger.debug("reponses index {} current index {}", responseIndex, currentIndex);
       }
+      return this;
     }
 
     public void stop() {
@@ -381,6 +440,7 @@ public class WatchService {
     String directory;
     String key;
     volatile Long currentIndex;
+    volatile EtcdValue<T> currentValue = null;
 
     protected ValueWatch(String directory, String key, TypeReference<T> type,
       EtcdEventHandler<T> handler) {
@@ -391,16 +451,17 @@ public class WatchService {
     }
 
     @Override
-    public void accept(EtcdKeysResponse response) {
+    public Watch accept(EtcdKeysResponse response) {
       Long responseIndex = indexOf(response);
       if (currentIndex < responseIndex && key(response).equals(directory + "/" + key)) {
         asEvent(mapper, directory, response, type).ifPresent(handler::handle);
         currentIndex = responseIndex;
       }
+      return this;
     }
 
     @Override
-    public void init() {
+    public Watch sync() {
       try {
         EtcdKeysResponse response = client.get().get(directory + "/" + key).send().get();
 
@@ -409,10 +470,23 @@ public class WatchService {
         if (!response.node.dir) {
           T value = readValue(mapper, response.node, type);
 
-          if (value != null) {
+          if (value != null && currentValue == null) {
             fireEvent(handler,
               EtcdEvent.<T> builder().withType(EtcdEvent.Type.added).withValue(value).withKey(key)
                 .build());
+            currentValue = new EtcdValue<T>(value, response.node.modifiedIndex, currentIndex);
+          }
+          else if( value == null && currentValue != null) {
+            fireEvent(handler, EtcdEvent.<T>builder()
+              .withType(EtcdEvent.Type.removed)
+              .withPrevValue(currentValue.value)
+              .withKey(key)
+              .build());
+             currentValue = null;
+          }
+          else if( value == null && currentValue == null ) {}
+          else if( response.node.modifiedIndex == currentValue.modifiedIndex || currentValue.value.equals(value) ) {
+            currentValue = new EtcdValue<T>(currentValue.value, currentValue.modifiedIndex, currentIndex);
           }
         }
       } catch (EtcdException ee) {
@@ -420,6 +494,7 @@ public class WatchService {
       } catch (IOException | TimeoutException e) {
         logger.error(format("faled to start watch for directory %s", directory), e);
       }
+      return this;
     }
 
     @Override
@@ -436,10 +511,15 @@ public class WatchService {
     try {
       EtcdKeysResponse response = client.get().putDir(directory).isDir().send().get();
 
-      watchIndex.set(response.etcdIndex);
+      lock.writeRunnable(()->{
+        syncIndex.set(response.etcdIndex);
+        etcdIndex.set(response.etcdIndex);
+      });
     } catch (EtcdException ee) {
-      watchIndex.set((long) ee.index);
-      logger.debug(format("failed to create directory %s", directory), ee);
+      lock.writeRunnable(()->{
+        syncIndex.set(ee.index);
+        etcdIndex.set(ee.index);
+      });
     } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("could not create directory %s", directory), e);
     }

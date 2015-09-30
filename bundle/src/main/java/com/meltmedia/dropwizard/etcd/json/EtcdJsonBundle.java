@@ -19,6 +19,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.codahale.metrics.MetricRegistry;
+
 import mousio.etcd4j.EtcdClient;
 import io.dropwizard.Configuration;
 import io.dropwizard.ConfiguredBundle;
@@ -76,7 +78,8 @@ public class EtcdJsonBundle<C extends Configuration> implements ConfiguredBundle
     factory =
       EtcdJson.builder().withClient(clientSupplier).withExecutor(executor.get())
         .withBaseDirectory(directoryAccessor.apply(configuration))
-        .withMapper(environment.getObjectMapper()).build();
+        .withMapper(environment.getObjectMapper())
+        .withMetricRegistry(environment.metrics()).build();
     environment.lifecycle().manage(new EtcdJsonManager(factory));
   }
 
