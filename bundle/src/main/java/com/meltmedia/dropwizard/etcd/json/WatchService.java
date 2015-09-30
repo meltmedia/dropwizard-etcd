@@ -41,6 +41,8 @@ import mousio.etcd4j.responses.EtcdKeysResponse.EtcdNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -123,6 +125,8 @@ public class WatchService {
   private AtomicLong etcdIndex = new AtomicLong(); // the last etcd index we have seen.
   private List<Watch> watchers = Lists.newCopyOnWriteArrayList();
   private FunctionalLock lock = new FunctionalLock();
+  private Meter watchEvents;
+  private Meter resyncEvents;
 
   protected WatchService(Supplier<EtcdClient> client, String directory, ObjectMapper mapper,
     ScheduledExecutorService executor, MetricRegistry registry, long timeout, TimeUnit timeoutUnit) {
@@ -132,6 +136,11 @@ public class WatchService {
     this.executor = executor;
     this.timeout = timeout;
     this.timeoutUnit = timeoutUnit;
+    registry.register(MetricRegistry.name(WatchService.class, "etcdIndex"), (Gauge<Long>)()->etcdIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, "watchIndex"), (Gauge<Long>)()->syncIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, "indexDelta"), (Gauge<Long>)()->etcdIndex.get()-syncIndex.get());
+    watchEvents = registry.meter(MetricRegistry.name(WatchService.class, "watchEvents"));
+    resyncEvents = registry.meter(MetricRegistry.name(WatchService.class, "resyncEvents"));
   }
 
   public <T> Watch registerDirectoryWatch(String directory, TypeReference<T> type,
@@ -186,6 +195,8 @@ public class WatchService {
               .timeout(timeout, timeoutUnit)
               .send()
               .get();
+          
+          watchEvents.mark();
 
         lock.writeRunnable(() -> {
           etcdIndex.set(response.etcdIndex);
@@ -195,6 +206,7 @@ public class WatchService {
         }).run();
       } catch( EtcdException etcdException ) {
         // we don't know what the state is, resync.
+        resyncEvents.mark();
         ensureDirectoryExists();
         lock.writeRunnable(()->{
           etcdIndex.set(etcdException.index);
