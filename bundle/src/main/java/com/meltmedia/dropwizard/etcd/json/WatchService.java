@@ -20,6 +20,7 @@ import static java.lang.String.format;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
@@ -44,6 +45,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.meltmedia.dropwizard.etcd.json.WatchService.Builder;
 
 /**
@@ -280,6 +282,18 @@ public class WatchService {
 
     public void stop();
   }
+  
+  protected static class EtcdValue<T> {
+    T value;
+    long modifiedIndex;
+    long loadIndex;
+    
+    public EtcdValue( T value, long modifiedIndex, long loadIndex ) {
+      this.value = value;
+      this.modifiedIndex = modifiedIndex;
+      this.loadIndex = loadIndex;
+    }
+  }
 
   public class DirectoryWatch<T> implements Watch {
     TypeReference<T> type;
@@ -287,6 +301,7 @@ public class WatchService {
     String directory;
     volatile Long currentIndex;
     Pattern keyMatcher;
+    Map<String, EtcdValue<T>> state = Maps.newHashMap();
 
     private DirectoryWatch(String directory, TypeReference<T> type, EtcdEventHandler<T> handler) {
       this.directory = directory;
@@ -315,17 +330,52 @@ public class WatchService {
             .filter(n -> !n.dir)
             .forEach(
               node -> {
-                logger.debug("reading value for " + node.key);
-                T value = readValue(mapper, node, type);
-
-                if (value != null) {
-                  fireEvent(handler, EtcdEvent.<T> builder().withType(EtcdEvent.Type.added)
-                    .withValue(value).withKey(removeDirectory(directory, node.key)).build());
-                } else {
-                  logger.debug("No value to read for {}!", node.key);
-                }
+                  state.compute(removeDirectory(directory, node.key), (key, entry)->{
+                    T value = readValue(mapper, node, type);
+                    if(entry == null && value == null) return null;
+                    
+                    else if(entry == null) {
+                      fireEvent(handler, EtcdEvent.<T> builder()
+                        .withType(EtcdEvent.Type.added)
+                        .withValue(value)
+                        .withKey(key)
+                        .build());
+                      return new EtcdValue<T>(value, node.modifiedIndex, currentIndex);
+                    }
+                    else if(value == null) {
+                      fireEvent(handler, EtcdEvent.<T> builder()
+                        .withType(EtcdEvent.Type.removed)
+                        .withPrevValue(entry.value)
+                        .withKey(key)
+                        .build());
+                      return null;                     
+                    }
+                    else if( entry.modifiedIndex == node.modifiedIndex || entry.equals(value) ) {
+                      entry.loadIndex = currentIndex;
+                      return entry;
+                    }
+                    else {
+                      fireEvent(handler, EtcdEvent.<T> builder()
+                        .withType(EtcdEvent.Type.updated)
+                        .withValue(value)
+                        .withPrevValue(entry.value)
+                        .withKey(key)
+                        .build());
+                      return new EtcdValue<T>(value, node.modifiedIndex, currentIndex);
+                    }
+                  });
               });
-        }
+          }
+          state.replaceAll((key, entry)->{
+            if( entry.loadIndex == currentIndex ) return entry;
+            
+            fireEvent(handler, EtcdEvent.<T> builder()
+              .withType(EtcdEvent.Type.removed)
+              .withPrevValue(entry.value)
+              .withKey(key)
+              .build());
+            return null;             
+          });
       } catch (EtcdException ee) {
         logger.debug("exception during sync", ee);
         currentIndex = Long.valueOf((long) ee.index.intValue());
@@ -342,7 +392,23 @@ public class WatchService {
 
       Long responseIndex = indexOf(response);
       if (currentIndex < responseIndex) {
-        asEvent(mapper, directory, response, type).ifPresent(handler::handle);
+        asEvent(mapper, directory, response, type).ifPresent(event->{
+          state.compute(event.getKey(), (key, entry)->{
+            switch( event.getType() ) {
+              case added:
+                fireEvent(handler, event);
+                return new EtcdValue<T>(event.getValue(), response.node.modifiedIndex, response.etcdIndex);
+              case updated:
+                fireEvent(handler, event);
+                return new EtcdValue<T>(event.getValue(), response.node.modifiedIndex, response.etcdIndex);
+              case removed:
+                fireEvent(handler, event);
+                return null;
+              default:
+                throw new IllegalStateException("unknown event type "+event.getType().name());
+            }
+          });
+        });
         currentIndex = responseIndex;
       } else {
         logger.debug("filtering event for {}", key(response));
@@ -362,6 +428,7 @@ public class WatchService {
     String directory;
     String key;
     volatile Long currentIndex;
+    volatile EtcdValue<T> currentValue = null;
 
     protected ValueWatch(String directory, String key, TypeReference<T> type,
       EtcdEventHandler<T> handler) {
@@ -391,10 +458,23 @@ public class WatchService {
         if (!response.node.dir) {
           T value = readValue(mapper, response.node, type);
 
-          if (value != null) {
+          if (value != null && currentValue == null) {
             fireEvent(handler,
               EtcdEvent.<T> builder().withType(EtcdEvent.Type.added).withValue(value).withKey(key)
                 .build());
+            currentValue = new EtcdValue<T>(value, response.node.modifiedIndex, currentIndex);
+          }
+          else if( value == null && currentValue != null) {
+            fireEvent(handler, EtcdEvent.<T>builder()
+              .withType(EtcdEvent.Type.removed)
+              .withPrevValue(currentValue.value)
+              .withKey(key)
+              .build());
+             currentValue = null;
+          }
+          else if( value == null && currentValue == null ) {}
+          else if( response.node.modifiedIndex == currentValue.modifiedIndex || currentValue.value.equals(value) ) {
+            currentValue = new EtcdValue<T>(currentValue.value, currentValue.modifiedIndex, currentIndex);
           }
         }
       } catch (EtcdException ee) {
