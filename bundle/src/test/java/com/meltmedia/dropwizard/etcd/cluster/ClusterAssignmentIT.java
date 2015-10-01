@@ -108,40 +108,46 @@ public class ClusterAssignmentIT {
       });
 
     node1 = new ClusterNode().withId("node1").withStartedAt(new DateTime());
+    
+    MetricRegistry registry1 = new MetricRegistry();
 
     clusterService1 =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
-        .withNodesDirectory(nodeDir).withThisNode(node1).build();
+        .withNodesDirectory(nodeDir).withThisNode(node1).withMetricRegistry(registry1).build();
 
     service1 =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(clusterService1.getStateTracker()).withProcessDir(processDir)
         .withThisNode(node1)
-        .withMetricRegistry(new MetricRegistry()).build();
+        .withMetricRegistry(registry1).build();
 
     node2 = new ClusterNode().withId("node2").withStartedAt(new DateTime());
 
+    MetricRegistry registry2 = new MetricRegistry();
+
     clusterService2 =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
-        .withNodesDirectory(nodeDir).withThisNode(node2).build();
+        .withNodesDirectory(nodeDir).withThisNode(node2).withMetricRegistry(registry2).build();
 
     service2 =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(clusterService2.getStateTracker()).withProcessDir(processDir)
         .withThisNode(node2)
-        .withMetricRegistry(new MetricRegistry()).build();
+        .withMetricRegistry(registry2).build();
 
     node3 = new ClusterNode().withId("node3").withStartedAt(new DateTime());
 
+    MetricRegistry registry3 = new MetricRegistry();
+
     clusterService3 =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
-        .withNodesDirectory(nodeDir).withThisNode(node3).build();
+        .withNodesDirectory(nodeDir).withThisNode(node3).withMetricRegistry(registry3).build();
 
     service3 =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(clusterService3.getStateTracker()).withProcessDir(processDir)
         .withThisNode(node3)
-        .withMetricRegistry(new MetricRegistry()).build();
+        .withMetricRegistry(registry3).build();
 
     dao =
       factoryRule.getFactory().newDirectory("/app/streams", new TypeReference<ClusterProcess>() {
@@ -375,10 +381,12 @@ public class ClusterAssignmentIT {
     int halfCeilCount = IntMath.divide(processCount, 2, RoundingMode.CEILING);
 
     ClusterNode node0 = new ClusterNode().withId("node0").withStartedAt(new DateTime());
+    
+    MetricRegistry registry = new MetricRegistry();
 
     ClusterService currentClusterService =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
-        .withNodesDirectory(nodeDir).withThisNode(node0).build();
+        .withNodesDirectory(nodeDir).withThisNode(node0).withMetricRegistry(registry).build();
 
     currentClusterService.start();
 
@@ -386,7 +394,7 @@ public class ClusterAssignmentIT {
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(currentClusterService.getStateTracker()).withProcessDir(processDir)
         .withThisNode(node0)
-        .withMetricRegistry(new MetricRegistry()).build();
+        .withMetricRegistry(registry).build();
 
     currentService.start();
 
@@ -394,10 +402,12 @@ public class ClusterAssignmentIT {
 
     for (int i = 1; i < 10; i++) {
       ClusterNode nextNode = new ClusterNode().withId("node" + i).withStartedAt(new DateTime());
+      
+      MetricRegistry nextRegistry = new MetricRegistry();
 
       ClusterService nextClusterService =
         ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
-          .withNodesDirectory(nodeDir).withThisNode(nextNode).build();
+          .withNodesDirectory(nodeDir).withThisNode(nextNode).withMetricRegistry(nextRegistry).build();
 
       nextClusterService.start();
 
@@ -405,7 +415,7 @@ public class ClusterAssignmentIT {
         ClusterAssignmentService.builder().withExecutor(executor)
           .withClusterState(nextClusterService.getStateTracker()).withProcessDir(processDir)
           .withThisNode(nextNode)
-          .withMetricRegistry(new MetricRegistry()).build();
+          .withMetricRegistry(nextRegistry).build();
       nextService.start();
 
       assertState(

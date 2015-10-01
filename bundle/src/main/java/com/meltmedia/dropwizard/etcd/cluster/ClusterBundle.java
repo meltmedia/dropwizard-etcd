@@ -84,6 +84,7 @@ public class ClusterBundle<C extends Configuration> implements ConfiguredBundle<
               }))
             .withThisNode(
               new ClusterNode().withId(UUID.randomUUID().toString()).withStartedAt(new DateTime()))
+            .withMetricRegistry(environment.metrics())
             .build();
         service.start();
       }
