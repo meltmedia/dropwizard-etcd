@@ -120,7 +120,19 @@ public class ClusterAssignmentService {
     this.crashCleanupDelay = crashCleanupDelay;
     this.registry = registry;
   }
-
+  
+  //
+  // Metric Names
+  //
+  public static final String EXCEPTIONS = "exceptions";
+  public static final String UNASSIGNMENT_FAILURES = "unassignmentFailures";
+  public static final String ASSIGNMENT_FAILURES = "assignmentFailures";
+  public static final String ASSIGNED = "assigned";
+  public static final String TOTAL = "total";
+  public static final String CLEAN_UP_TASK = "cleanUpTask";
+  public static final String ASSIGNMENT_TASK = "assignmentTask";
+  public static final List<String> ALL_METRICS = Lists.newArrayList(EXCEPTIONS, UNASSIGNMENT_FAILURES, ASSIGNMENT_FAILURES, ASSIGNED, TOTAL, CLEAN_UP_TASK, ASSIGNMENT_TASK);
+  
   // extenral dependencies
   ScheduledExecutorService executor;
   ClusterNode thisNode;
@@ -147,13 +159,13 @@ public class ClusterAssignmentService {
 
   public void start() {
     logger.debug("starting assignments for {}", thisNode.getId());
-    registry.register(metricName.apply("totalProcessCount"), (Gauge<Integer>)()->totalProcessCount.get());
-    registry.register(metricName.apply("thisProcessCount"), (Gauge<Integer>)()->thisProcessCount.get());
-    assignmentTask = registry.meter(metricName.apply("assignmentTask"));
-    cleanUpTask = registry.meter(metricName.apply("cleanUpTask"));
-    assignmentFailures = registry.meter(metricName.apply("assignmentFailures"));
-    unassignmentFailures = registry.meter(metricName.apply("unassignmentFailures"));
-    exceptions = registry.meter(metricName.apply("exceptions"));
+    registry.register(metricName.apply(TOTAL), (Gauge<Integer>)()->totalProcessCount.get());
+    registry.register(metricName.apply(ASSIGNED), (Gauge<Integer>)()->thisProcessCount.get());
+    assignmentTask = registry.meter(metricName.apply(ASSIGNMENT_TASK));
+    cleanUpTask = registry.meter(metricName.apply(CLEAN_UP_TASK));
+    assignmentFailures = registry.meter(metricName.apply(ASSIGNMENT_FAILURES));
+    unassignmentFailures = registry.meter(metricName.apply(UNASSIGNMENT_FAILURES));
+    exceptions = registry.meter(metricName.apply(EXCEPTIONS));
     jobsWatch = processDir.registerWatch(this::handleProcess);
     startNodeAssignmentTask();
     startFailureCleanupTask();
@@ -164,8 +176,7 @@ public class ClusterAssignmentService {
     stopFailureCleanupTask();
     stopNodeAssignmentTask();
     unassignJobs();
-    Lists.newArrayList("exceptions", "unassignmentFailures", "assignmentFailures", "thisProcessCount", "totalProcessCount", "cleanUpTask", "assignmentTask")
-      .forEach(name->registry.remove(metricName.apply(name)));
+    ALL_METRICS.forEach(name->registry.remove(metricName.apply(name)));
     jobsWatch.stop();
     totalProcessCount.set(0);
     thisProcessCount.set(0);
