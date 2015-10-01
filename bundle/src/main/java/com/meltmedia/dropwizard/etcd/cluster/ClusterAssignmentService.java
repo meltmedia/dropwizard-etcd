@@ -25,6 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -33,6 +34,9 @@ import com.google.common.math.IntMath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.collect.Lists;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterStateTracker.State;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
@@ -51,6 +55,7 @@ public class ClusterAssignmentService {
     private MappedEtcdDirectory<ClusterProcess> processDir;
     private ClusterStateTracker stateTracker;
     private Optional<FixedDelay> crashCleanupDelay = Optional.empty();
+    private MetricRegistry registry;
 
     public Builder withExecutor(ScheduledExecutorService executor) {
       this.executor = executor;
@@ -76,11 +81,23 @@ public class ClusterAssignmentService {
       this.crashCleanupDelay = Optional.ofNullable(crashCleanupDelay);
       return this;
     }
+    
+    public Builder withMetricRegistry( MetricRegistry registry ) {
+      this.registry = registry;
+      return this;
+    }
+    
+    private static FixedDelay DEFAULT_DELAY = FixedDelay.builder()
+      .withDelay(10)
+      .withInitialDelay(10)
+      .withTimeUnit(TimeUnit.SECONDS)
+      .build();
 
     public ClusterAssignmentService build() {
+      if( registry == null ) throw new IllegalStateException("metric registry is required");
       return new ClusterAssignmentService(executor, thisNode, processDir, stateTracker,
-        crashCleanupDelay.orElse(FixedDelay.builder().withDelay(10).withInitialDelay(10)
-          .withTimeUnit(TimeUnit.SECONDS).build()));
+        crashCleanupDelay.orElse(DEFAULT_DELAY),
+        registry);
     }
   }
 
@@ -94,13 +111,14 @@ public class ClusterAssignmentService {
 
   public ClusterAssignmentService(ScheduledExecutorService executor, ClusterNode thisNode,
     MappedEtcdDirectory<ClusterProcess> processDir, ClusterStateTracker stateTracker,
-    FixedDelay crashCleanupDelay) {
+    FixedDelay crashCleanupDelay, MetricRegistry registry) {
     this.executor = executor;
     this.thisNode = thisNode;
     this.processDir = processDir;
     this.stateTracker = stateTracker;
     this.processDao = processDir.newDao();
     this.crashCleanupDelay = crashCleanupDelay;
+    this.registry = registry;
   }
 
   // extenral dependencies
@@ -110,6 +128,8 @@ public class ClusterAssignmentService {
   ClusterStateTracker stateTracker;
   MappedEtcdDirectory<ClusterProcess> processDir;
   FixedDelay crashCleanupDelay;
+  MetricRegistry registry;
+  Function<String, String> metricName = name->MetricRegistry.name(ClusterAssignmentService.class, name);
 
   // used by the service.
   ScheduledFuture<?> assignmentFuture;
@@ -119,9 +139,21 @@ public class ClusterAssignmentService {
   Map<String, Set<String>> processes = Maps.newConcurrentMap();
   List<String> unassigned = Lists.newCopyOnWriteArrayList();
   private ScheduledFuture<?> cleanupFuture;
+  private Meter assignmentTask;
+  private Meter cleanUpTask;
+  private Meter assignmentFailures;
+  private Meter unassignmentFailures;
+  private Meter exceptions;
 
   public void start() {
     logger.debug("starting assignments for {}", thisNode.getId());
+    registry.register(metricName.apply("totalProcessCount"), (Gauge<Integer>)()->totalProcessCount.get());
+    registry.register(metricName.apply("thisProcessCount"), (Gauge<Integer>)()->thisProcessCount.get());
+    assignmentTask = registry.meter(metricName.apply("assignmentTask"));
+    cleanUpTask = registry.meter(metricName.apply("cleanUpTask"));
+    assignmentFailures = registry.meter(metricName.apply("assignmentFailures"));
+    unassignmentFailures = registry.meter(metricName.apply("unassignmentFailures"));
+    exceptions = registry.meter(metricName.apply("exceptions"));
     jobsWatch = processDir.registerWatch(this::handleProcess);
     startNodeAssignmentTask();
     startFailureCleanupTask();
@@ -132,6 +164,8 @@ public class ClusterAssignmentService {
     stopFailureCleanupTask();
     stopNodeAssignmentTask();
     unassignJobs();
+    Lists.newArrayList("exceptions", "unassignmentFailures", "assignmentFailures", "thisProcessCount", "totalProcessCount", "cleanUpTask", "assignmentTask")
+      .forEach(name->registry.remove(metricName.apply(name)));
     jobsWatch.stop();
     totalProcessCount.set(0);
     thisProcessCount.set(0);
@@ -144,7 +178,7 @@ public class ClusterAssignmentService {
     assignmentFuture =
       executor.scheduleWithFixedDelay(
         () -> {
-          logger.debug("assignment loop for {}", thisNode.getId());
+          assignmentTask.mark();
           try {
             int processCount = thisProcessCount.get();
             int currentNodeCount = stateTracker.getState().memberCount();
@@ -154,8 +188,6 @@ public class ClusterAssignmentService {
               currentNodeCount == 0 ? 0 : IntMath.divide(total, currentNodeCount,
                 RoundingMode.CEILING);
 
-            logger.debug("empty nodes on {} {}", thisNode.getId(), unassigned);
-
             if (processCount < maxProcessCount && !unassigned.isEmpty()) {
               for (String toAssign : unassigned) {
                 try {
@@ -163,6 +195,7 @@ public class ClusterAssignmentService {
                     p -> p.withAssignedTo(thisNode.getId()));
                   return;
                 } catch (IndexOutOfBoundsException | EtcdDirectoryException e) {
+                  assignmentFailures.mark();
                   logger.debug("could not assign process {}", e.getMessage());
                   ignoreException(() -> TimeUnit.SECONDS.sleep(1));
                 }
@@ -174,12 +207,14 @@ public class ClusterAssignmentService {
                     p -> p.withAssignedTo(null));
                   return;
                 } catch (IndexOutOfBoundsException | EtcdDirectoryException e) {
+                  unassignmentFailures.mark();
                   logger.warn("could not unassign process {}", e.getMessage());
                 }
               }
             }
             ignoreException(() -> TimeUnit.SECONDS.sleep(1));
           } catch (Exception e) {
+            exceptions.mark();
             logger.error("exception thrown in assignment process.", e);
           }
         }, 100L, 100L, TimeUnit.MILLISECONDS);
@@ -191,7 +226,7 @@ public class ClusterAssignmentService {
       executor
         .scheduleWithFixedDelay(
           () -> {
-            logger.debug("clean up loop for {}", thisNode.getId());
+            cleanUpTask.mark();
 
             // iterate over the process map and make sure we have an entry in the state nodes.
             State state = stateTracker.getState();
@@ -206,10 +241,15 @@ public class ClusterAssignmentService {
                     processEntry
                       .getValue()
                       .stream()
-                      .forEach(
-                        processId -> processDao.update(processId, (process) -> processEntry
+                      .forEach(processId ->{
+                        try {
+                         processDao.update(processId, (process) -> processEntry
                           .getKey().equals(process.getAssignedTo()), (process) -> process
-                          .withAssignedTo(null)));
+                          .withAssignedTo(null));
+                        } catch( Exception e ) {
+                          unassignmentFailures.mark();
+                          logger.debug("could not unassign process after crash", e);
+                        }});
                   });
             }
           }, crashCleanupDelay.getInitialDelay(), crashCleanupDelay.getDelay(), crashCleanupDelay
@@ -220,6 +260,7 @@ public class ClusterAssignmentService {
     try {
       cleanupFuture.cancel(true);
     } catch (Exception e) {
+      exceptions.mark();
       logger.warn("error thrown while stoping cleanup task");
     }
     cleanupFuture = null;
@@ -241,6 +282,7 @@ public class ClusterAssignmentService {
     try {
       assignmentFuture.cancel(true);
     } catch (Exception e) {
+      exceptions.mark();
       logger.warn("error thrown while stoping assignment task");
     }
     assignmentFuture = null;
@@ -257,6 +299,7 @@ public class ClusterAssignmentService {
               process -> thisNode.getId().equals(process.getAssignedTo()),
               process -> process.withAssignedTo(null));
           } catch (Exception e) {
+            unassignmentFailures.mark();
             logger.warn("could not unassign process {}", processKey);
           }
         });

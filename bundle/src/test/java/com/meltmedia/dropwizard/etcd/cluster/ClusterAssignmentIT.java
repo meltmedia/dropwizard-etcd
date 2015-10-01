@@ -47,6 +47,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -115,7 +116,8 @@ public class ClusterAssignmentIT {
     service1 =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(clusterService1.getStateTracker()).withProcessDir(processDir)
-        .withThisNode(node1).build();
+        .withThisNode(node1)
+        .withMetricRegistry(new MetricRegistry()).build();
 
     node2 = new ClusterNode().withId("node2").withStartedAt(new DateTime());
 
@@ -126,7 +128,8 @@ public class ClusterAssignmentIT {
     service2 =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(clusterService2.getStateTracker()).withProcessDir(processDir)
-        .withThisNode(node2).build();
+        .withThisNode(node2)
+        .withMetricRegistry(new MetricRegistry()).build();
 
     node3 = new ClusterNode().withId("node3").withStartedAt(new DateTime());
 
@@ -137,7 +140,8 @@ public class ClusterAssignmentIT {
     service3 =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(clusterService3.getStateTracker()).withProcessDir(processDir)
-        .withThisNode(node3).build();
+        .withThisNode(node3)
+        .withMetricRegistry(new MetricRegistry()).build();
 
     dao =
       factoryRule.getFactory().newDirectory("/app/streams", new TypeReference<ClusterProcess>() {
@@ -381,7 +385,8 @@ public class ClusterAssignmentIT {
     ClusterAssignmentService currentService =
       ClusterAssignmentService.builder().withExecutor(executor)
         .withClusterState(currentClusterService.getStateTracker()).withProcessDir(processDir)
-        .withThisNode(node0).build();
+        .withThisNode(node0)
+        .withMetricRegistry(new MetricRegistry()).build();
 
     currentService.start();
 
@@ -399,7 +404,8 @@ public class ClusterAssignmentIT {
       ClusterAssignmentService nextService =
         ClusterAssignmentService.builder().withExecutor(executor)
           .withClusterState(nextClusterService.getStateTracker()).withProcessDir(processDir)
-          .withThisNode(nextNode).build();
+          .withThisNode(nextNode)
+          .withMetricRegistry(new MetricRegistry()).build();
       nextService.start();
 
       assertState(
@@ -463,6 +469,7 @@ public class ClusterAssignmentIT {
         .withClusterState(clusterService1.getStateTracker())
         .withProcessDir(processDir)
         .withThisNode(node1)
+        .withMetricRegistry(new MetricRegistry())
         .withCrashCleanupDelay(
           FixedDelay.builder().withDelay(10).withInitialDelay(10)
             .withTimeUnit(TimeUnit.MILLISECONDS).build()).build();
