@@ -102,13 +102,8 @@ public class ClusterAssignmentService {
 
     public ClusterAssignmentService build() {
       if( metricName == null ) {
-        String dirName = processDir.getName();
-        if( Strings.isNullOrEmpty(dirName) ) {
-          metricName = name->MetricRegistry.name(ClusterAssignmentService.class, dirName, name);
-        }
-        else {
-          metricName = name->MetricRegistry.name(ClusterAssignmentService.class, name);
-        }
+        String dirName = processDir.getName().replace('.', '_');
+        metricName = name->MetricRegistry.name(ClusterAssignmentService.class, dirName, name);
       }
       if( registry == null ) throw new IllegalStateException("metric registry is required");
       return new ClusterAssignmentService(executor, thisNode, processDir, stateTracker,
