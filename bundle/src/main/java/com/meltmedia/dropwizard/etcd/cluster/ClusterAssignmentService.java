@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterStateTracker.State;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
@@ -56,6 +57,7 @@ public class ClusterAssignmentService {
     private ClusterStateTracker stateTracker;
     private Optional<FixedDelay> crashCleanupDelay = Optional.empty();
     private MetricRegistry registry;
+    Function<String, String> metricName = null;
 
     public Builder withExecutor(ScheduledExecutorService executor) {
       this.executor = executor;
@@ -87,6 +89,11 @@ public class ClusterAssignmentService {
       return this;
     }
     
+    public Builder withMetricName( Function<String, String> metricName ) {
+      this.metricName = metricName;
+      return this;
+    }
+    
     private static FixedDelay DEFAULT_DELAY = FixedDelay.builder()
       .withDelay(10)
       .withInitialDelay(10)
@@ -94,10 +101,19 @@ public class ClusterAssignmentService {
       .build();
 
     public ClusterAssignmentService build() {
+      if( metricName == null ) {
+        String dirName = processDir.getName();
+        if( Strings.isNullOrEmpty(dirName) ) {
+          metricName = name->MetricRegistry.name(ClusterAssignmentService.class, dirName, name);
+        }
+        else {
+          metricName = name->MetricRegistry.name(ClusterAssignmentService.class, name);
+        }
+      }
       if( registry == null ) throw new IllegalStateException("metric registry is required");
       return new ClusterAssignmentService(executor, thisNode, processDir, stateTracker,
         crashCleanupDelay.orElse(DEFAULT_DELAY),
-        registry);
+        registry, metricName);
     }
   }
 
@@ -111,7 +127,7 @@ public class ClusterAssignmentService {
 
   public ClusterAssignmentService(ScheduledExecutorService executor, ClusterNode thisNode,
     MappedEtcdDirectory<ClusterProcess> processDir, ClusterStateTracker stateTracker,
-    FixedDelay crashCleanupDelay, MetricRegistry registry) {
+    FixedDelay crashCleanupDelay, MetricRegistry registry, Function<String, String> metricName) {
     this.executor = executor;
     this.thisNode = thisNode;
     this.processDir = processDir;
@@ -119,6 +135,7 @@ public class ClusterAssignmentService {
     this.processDao = processDir.newDao();
     this.crashCleanupDelay = crashCleanupDelay;
     this.registry = registry;
+    this.metricName = metricName;
   }
   
   //
@@ -141,7 +158,7 @@ public class ClusterAssignmentService {
   MappedEtcdDirectory<ClusterProcess> processDir;
   FixedDelay crashCleanupDelay;
   MetricRegistry registry;
-  Function<String, String> metricName = name->MetricRegistry.name(ClusterAssignmentService.class, name);
+  Function<String, String> metricName;
 
   // used by the service.
   ScheduledFuture<?> assignmentFuture;

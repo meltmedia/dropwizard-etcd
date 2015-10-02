@@ -22,14 +22,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -112,6 +109,12 @@ public class WatchService {
       return new WatchService(client, directory, mapper, executor, registry, timeout, timeoutUnit);
     }
   }
+  
+  public static String ETCD_INDEX = "etcdIndex";
+  public static String SYNC_INDEX = "syncIndex";
+  public static String INDEX_DELTA = "indexDelta";
+  public static String WATCH_EVENTS = "watchEvents";
+  public static String RESYNC_EVENTS = "resyncEvents";
 
   private Supplier<EtcdClient> client;
   private ObjectMapper mapper;
@@ -136,11 +139,11 @@ public class WatchService {
     this.executor = executor;
     this.timeout = timeout;
     this.timeoutUnit = timeoutUnit;
-    registry.register(MetricRegistry.name(WatchService.class, "etcdIndex"), (Gauge<Long>)()->etcdIndex.get());
-    registry.register(MetricRegistry.name(WatchService.class, "watchIndex"), (Gauge<Long>)()->syncIndex.get());
-    registry.register(MetricRegistry.name(WatchService.class, "indexDelta"), (Gauge<Long>)()->etcdIndex.get()-syncIndex.get());
-    watchEvents = registry.meter(MetricRegistry.name(WatchService.class, "watchEvents"));
-    resyncEvents = registry.meter(MetricRegistry.name(WatchService.class, "resyncEvents"));
+    registry.register(MetricRegistry.name(WatchService.class, ETCD_INDEX), (Gauge<Long>)()->etcdIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, SYNC_INDEX), (Gauge<Long>)()->syncIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, INDEX_DELTA), (Gauge<Long>)()->etcdIndex.get()-syncIndex.get());
+    watchEvents = registry.meter(MetricRegistry.name(WatchService.class, WATCH_EVENTS));
+    resyncEvents = registry.meter(MetricRegistry.name(WatchService.class, RESYNC_EVENTS));
   }
 
   public <T> Watch registerDirectoryWatch(String directory, TypeReference<T> type,

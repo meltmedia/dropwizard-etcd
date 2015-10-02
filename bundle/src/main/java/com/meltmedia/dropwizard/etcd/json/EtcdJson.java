@@ -149,6 +149,10 @@ public class EtcdJson {
     public EtcdDirectoryDao<T> newDao() {
       return new EtcdDirectoryDao<T>(clientSupplier, baseDirectory + directory, mapper, type);
     }
+
+    public String getName() {
+      return this.directory.replaceFirst("([^//]*)$", "$1");
+    }
   }
 
   public ObjectMapper getMapper() {
