@@ -151,7 +151,7 @@ public class EtcdJson {
     }
 
     public String getName() {
-      return this.directory.replaceFirst("([^//]*)$", "$1");
+      return this.directory.replaceFirst(".*?([^/]*)\\Z", "$1");
     }
   }
 

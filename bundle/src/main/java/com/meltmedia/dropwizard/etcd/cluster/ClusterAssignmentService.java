@@ -37,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
-import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterStateTracker.State;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
@@ -57,7 +56,7 @@ public class ClusterAssignmentService {
     private ClusterStateTracker stateTracker;
     private Optional<FixedDelay> crashCleanupDelay = Optional.empty();
     private MetricRegistry registry;
-    Function<String, String> metricName = null;
+    Function<String, String> metricName;
 
     public Builder withExecutor(ScheduledExecutorService executor) {
       this.executor = executor;

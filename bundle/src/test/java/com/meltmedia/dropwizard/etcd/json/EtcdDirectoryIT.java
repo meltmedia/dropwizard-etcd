@@ -27,6 +27,8 @@ import com.meltmedia.dropwizard.etcd.EtcdClientRule;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
 import com.meltmedia.dropwizard.etcd.json.KeyNotFound;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.MatcherAssert.*;
 
 public class EtcdDirectoryIT {
   @ClassRule
@@ -53,6 +55,11 @@ public class EtcdDirectoryIT {
   @Test(expected = KeyNotFound.class)
   public void shouldThrowKeyNotFound() {
     dao.get("undefined");
+  }
+  
+  @Test
+  public void shouldGetName() {
+    assertThat("name was returned", directory.getName(), equalTo("data"));
   }
 
   public static class NodeData {
