@@ -48,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.MetricRegistryListener;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -61,6 +62,7 @@ import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
 import com.meltmedia.dropwizard.etcd.json.EtcdJsonRule;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
+import static org.mockito.Mockito.*;
 
 /**
  * The first version of this application just needs to keep all of the twitter streams
@@ -96,6 +98,11 @@ public class ClusterAssignmentIT {
   private ClusterService clusterService1;
   private ClusterService clusterService2;
   private ClusterService clusterService3;
+  
+  private MetricRegistryListener listener1;
+  private MetricRegistryListener listener2;
+  private MetricRegistryListener listener3;
+  
 
   @Before
   public void setUp() throws Exception {
@@ -110,6 +117,7 @@ public class ClusterAssignmentIT {
     node1 = new ClusterNode().withId("node1").withStartedAt(new DateTime());
     
     MetricRegistry registry1 = new MetricRegistry();
+    registry1.addListener(listener1 = mock(MetricRegistryListener.class));
 
     clusterService1 =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
@@ -124,6 +132,7 @@ public class ClusterAssignmentIT {
     node2 = new ClusterNode().withId("node2").withStartedAt(new DateTime());
 
     MetricRegistry registry2 = new MetricRegistry();
+    registry2.addListener(listener2 = mock(MetricRegistryListener.class));
 
     clusterService2 =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
@@ -138,6 +147,7 @@ public class ClusterAssignmentIT {
     node3 = new ClusterNode().withId("node3").withStartedAt(new DateTime());
 
     MetricRegistry registry3 = new MetricRegistry();
+    registry3.addListener(listener3 = mock(MetricRegistryListener.class));
 
     clusterService3 =
       ClusterService.builder().withEtcdFactory(factoryRule.getFactory()).withExecutor(executor)
@@ -493,6 +503,19 @@ public class ClusterAssignmentIT {
 
     assertState("all jobs were unassigned", s -> s.unassigned() == 1);
 
+  }
+  
+  @Test
+  public void registerMetrics() {
+    service1.start();
+
+    verify(listener1).onGaugeAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.ASSIGNED)), any());
+    verify(listener1).onGaugeAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.TOTAL)), any());
+    verify(listener1).onMeterAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.ASSIGNMENT_FAILURES)), any());
+    verify(listener1).onMeterAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.UNASSIGNMENT_FAILURES)), any());
+    verify(listener1).onMeterAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.EXCEPTIONS)), any());
+    verify(listener1).onMeterAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.ASSIGNMENT_TASK)), any());
+    verify(listener1).onMeterAdded(eq(MetricRegistry.name(ClusterAssignmentService.class, "streams", ClusterAssignmentService.CLEAN_UP_TASK)), any());  
   }
 
   public static ClusterProcess processNode(String assignedTo, String name) {
