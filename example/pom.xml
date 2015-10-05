@@ -21,7 +21,7 @@
   <parent>
     <artifactId>dropwizard-etcd-parent</artifactId>
     <groupId>com.meltmedia.dropwizard</groupId>
-    <version>0.3.0</version>
+    <version>0.4.0-SNAPSHOT</version>
   </parent>
 
   <groupId>com.meltmedia.dropwizard</groupId>
