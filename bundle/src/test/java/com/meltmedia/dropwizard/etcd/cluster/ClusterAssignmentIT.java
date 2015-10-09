@@ -53,14 +53,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.Lists;
-import com.meltmedia.dropwizard.etcd.EtcdClientRule;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterAssignmentService;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterAssignmentService.FixedDelay;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterService;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
-import com.meltmedia.dropwizard.etcd.json.EtcdJsonRule;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
+import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
+import com.meltmedia.dropwizard.etcd.junit.EtcdJsonRule;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
 import static org.mockito.Mockito.*;
 

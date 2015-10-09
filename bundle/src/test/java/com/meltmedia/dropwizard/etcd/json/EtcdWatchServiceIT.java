@@ -28,13 +28,13 @@ import org.junit.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.meltmedia.dropwizard.etcd.EtcdClientRule;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
 import com.meltmedia.dropwizard.etcd.json.EtcdEventHandler;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent.Type;
 import com.meltmedia.dropwizard.etcd.json.WatchService.Watch;
+import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
 
 import static org.mockito.Mockito.*;
 import static com.meltmedia.dropwizard.etcd.json.EtcdMatchers.*;

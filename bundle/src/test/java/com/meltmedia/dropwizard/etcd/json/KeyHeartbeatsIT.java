@@ -31,12 +31,13 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.meltmedia.dropwizard.etcd.EtcdClientRule;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
 import com.meltmedia.dropwizard.etcd.json.EtcdEventHandler;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson;
 import com.meltmedia.dropwizard.etcd.json.Heartbeat;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
+import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
+import com.meltmedia.dropwizard.etcd.junit.EtcdJsonRule;
 
 public class KeyHeartbeatsIT {
   @ClassRule

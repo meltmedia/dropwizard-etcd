@@ -35,11 +35,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.meltmedia.dropwizard.etcd.EtcdClientRule;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterProcessLifecycle;
 import com.meltmedia.dropwizard.etcd.cluster.ClusterProcessor;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
-import com.meltmedia.dropwizard.etcd.json.EtcdJsonRule;
+import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
+import com.meltmedia.dropwizard.etcd.junit.EtcdJsonRule;
 
 public class ClusterProcessorIT {
   @ClassRule

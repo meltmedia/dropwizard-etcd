@@ -23,9 +23,10 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.meltmedia.dropwizard.etcd.EtcdClientRule;
 import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
+import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
+import com.meltmedia.dropwizard.etcd.junit.EtcdJsonRule;
 import com.meltmedia.dropwizard.etcd.json.KeyNotFound;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.MatcherAssert.*;
