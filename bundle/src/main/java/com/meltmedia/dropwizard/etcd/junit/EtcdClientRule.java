@@ -29,10 +29,16 @@ import org.junit.runners.model.Statement;
 public class EtcdClientRule implements TestRule {
 
   String uri;
+  int maxFrameSize = 1024 * 100;
   EtcdClient client;
 
   public EtcdClientRule(String uri) {
     this.uri = uri;
+  }
+  
+  public EtcdClientRule withMaxFrameSize( int maxFrameSize ) {
+    this.maxFrameSize = maxFrameSize;
+    return this;
   }
 
   @Override
@@ -41,7 +47,7 @@ public class EtcdClientRule implements TestRule {
       @Override
       public void evaluate() throws Throwable {
         URI serverUri = URI.create(uri);
-        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(serverUri.getHost());
+        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(serverUri.getHost()).setMaxFrameSize(maxFrameSize);
 
         client = new EtcdClient(new EtcdNettyClient(config, null, new URI[] { serverUri }));
 
