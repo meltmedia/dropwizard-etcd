@@ -79,7 +79,9 @@ public class EtcdBundle<C extends Configuration> implements ConfiguredBundle<C> 
     environment.lifecycle().manage(new Managed() {
       @Override
       public void start() throws Exception {
-        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(bundleConfig.getHostName());
+        EtcdNettyConfig config = new EtcdNettyConfig()
+          .setHostName(bundleConfig.getHostName())
+          .setMaxFrameSize(bundleConfig.getMaxFrameSize());
         client =
           new EtcdClient(new EtcdNettyClient(config, null, bundleConfig.getUrls().toArray(
             new URI[] {})));

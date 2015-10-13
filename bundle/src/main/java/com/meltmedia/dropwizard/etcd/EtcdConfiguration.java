@@ -23,6 +23,7 @@ import javax.validation.constraints.NotNull;
 public class EtcdConfiguration {
   @NotNull
   List<URI> urls;
+  int maxFrameSize = 1024 * 100;
   String hostName;
 
   public List<URI> getUrls() {
@@ -39,5 +40,13 @@ public class EtcdConfiguration {
 
   public void setHostName(String hostName) {
     this.hostName = hostName;
+  }
+
+  public int getMaxFrameSize() {
+    return maxFrameSize;
+  }
+
+  public void setMaxFrameSize( int maxFrameSize ) {
+    this.maxFrameSize = maxFrameSize;
   }
 }
