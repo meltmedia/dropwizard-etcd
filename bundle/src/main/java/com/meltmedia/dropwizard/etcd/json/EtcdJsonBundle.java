@@ -81,6 +81,7 @@ public class EtcdJsonBundle<C extends Configuration> implements ConfiguredBundle
         .withMapper(environment.getObjectMapper())
         .withMetricRegistry(environment.metrics()).build();
     environment.lifecycle().manage(new EtcdJsonManager(factory));
+    environment.healthChecks().register("etcd-watch", new WatchServiceHealthCheck(factory.getWatchService()));
   }
 
   public EtcdJson getFactory() {

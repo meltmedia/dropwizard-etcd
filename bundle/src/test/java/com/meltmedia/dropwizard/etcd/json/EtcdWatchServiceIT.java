@@ -38,12 +38,14 @@ import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
 
 import static org.mockito.Mockito.*;
 import static com.meltmedia.dropwizard.etcd.json.EtcdMatchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.MatcherAssert.*;
 
 public class EtcdWatchServiceIT {
   public static final String BASE_PATH = "/talu-twitter-streams/it";
   public static final String EXTERNAL_NOISE_BASE_PATH = "/talu-twitter-streams/noise";
   @ClassRule
-  public static EtcdClientRule clientRule = new EtcdClientRule("http://127.0.0.1:2379");
+  public static EtcdClientRule clientRule = new EtcdClientRule("http://127.0.0.1:2379").withMaxFrameSize(1024*1000);
   @Rule
   public EtcdWatchServiceRule serviceRule = new EtcdWatchServiceRule(clientRule::getClient,
     BASE_PATH);
@@ -379,11 +381,14 @@ public class EtcdWatchServiceIT {
     dirDao.resetDirectory();
     
     for( int i = 0; i < 1000; i++ ) {
-      dirDao.put("/key"+i, new NodeData().withName("name"+i));
+      dirDao.put("key"+i, new NodeData().withName("name"+i));
     }
 
     Watch watch = service.registerDirectoryWatch("/dir", new TypeReference<NodeData>() {
-    }, handler);  
+    }, handler);
+
+    assertThat(watch.inSync(), equalTo(true));
+    assertThat(service.outOfSyncWatchers().isEmpty(), equalTo(true));
     
     watch.stop();
   }

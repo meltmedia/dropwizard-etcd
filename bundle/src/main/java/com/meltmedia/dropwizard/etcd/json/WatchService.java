@@ -29,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import mousio.etcd4j.EtcdClient;
 import mousio.etcd4j.responses.EtcdException;
@@ -124,8 +125,9 @@ public class WatchService {
   private TimeUnit timeoutUnit;
 
   private ScheduledFuture<?> watchFuture;
-  private AtomicLong syncIndex = new AtomicLong(); // the index to which we are synchronized.
-  private AtomicLong etcdIndex = new AtomicLong(); // the last etcd index we have seen.
+  private AtomicLong syncIndex = new AtomicLong(0); // the index to which we are synchronized.
+  private AtomicLong etcdIndex = new AtomicLong(0); // the last etcd index we have seen.
+  private AtomicLong indexDelta = new AtomicLong(0);
   private List<Watch> watchers = Lists.newCopyOnWriteArrayList();
   private FunctionalLock lock = new FunctionalLock();
   private Meter watchEvents;
@@ -141,7 +143,7 @@ public class WatchService {
     this.timeoutUnit = timeoutUnit;
     registry.register(MetricRegistry.name(WatchService.class, ETCD_INDEX), (Gauge<Long>)()->etcdIndex.get());
     registry.register(MetricRegistry.name(WatchService.class, SYNC_INDEX), (Gauge<Long>)()->syncIndex.get());
-    registry.register(MetricRegistry.name(WatchService.class, INDEX_DELTA), (Gauge<Long>)()->etcdIndex.get()-syncIndex.get());
+    registry.register(MetricRegistry.name(WatchService.class, INDEX_DELTA), (Gauge<Long>)()->indexDelta.get());
     watchEvents = registry.meter(MetricRegistry.name(WatchService.class, WATCH_EVENTS));
     resyncEvents = registry.meter(MetricRegistry.name(WatchService.class, RESYNC_EVENTS));
   }
@@ -171,6 +173,13 @@ public class WatchService {
     logger.debug("stopping watch for {}", directory);
     stopWatchingNodes();
     logger.debug("stopped watch for {}", directory);
+  }
+  
+  public List<Watch> outOfSyncWatchers() {
+    return lock
+      .readSupplier(()->watchers.stream().filter(w->!w.inSync())
+      .collect(Collectors.toList()))
+      .get();
   }
 
   protected long getWatchIndex() {
@@ -204,6 +213,7 @@ public class WatchService {
         lock.writeRunnable(() -> {
           etcdIndex.set(response.etcdIndex);
           if (syncIndex.compareAndSet(currIndex, response.node.modifiedIndex)) {
+            indexDelta.set(etcdIndex.get()-syncIndex.get());
             watchers.forEach(w -> w.accept(response));
           }
         }).run();
@@ -217,6 +227,7 @@ public class WatchService {
             .mapToLong(w->w.sync().currentIndex())
             .min()
             .orElse(etcdException.index));
+          indexDelta.set(etcdIndex.get()-syncIndex.get());
         }).run();
       } catch (TimeoutException e) {
         logger.debug("etcd watch timed out");
@@ -230,7 +241,8 @@ public class WatchService {
     lock.writeRunnable(() -> {
       watch.sync();
       watchers.add(watch);
-      syncIndex.set(min(syncIndex.get(), watch.currentIndex()));
+      syncIndex.set(watchers.stream().mapToLong(Watch::currentIndex).min().orElse(0L));
+      indexDelta.set(etcdIndex.get()-syncIndex.get());
     }).run();
   }
 
@@ -296,6 +308,8 @@ public class WatchService {
     public Long currentIndex();
 
     public void stop();
+    
+    public boolean inSync();
   }
   
   protected static class EtcdValue<T> {
@@ -315,6 +329,7 @@ public class WatchService {
     EtcdEventHandler<T> handler;
     String directory;
     volatile Long currentIndex = Long.valueOf(0L);
+    volatile boolean inSync = false;
     Pattern keyMatcher;
     Map<String, EtcdValue<T>> state = Maps.newHashMap();
 
@@ -332,8 +347,13 @@ public class WatchService {
     public Long currentIndex() {
       return currentIndex;
     }
+    
+    public boolean inSync() {
+      return inSync;
+    }
 
     public Watch sync() {
+      inSync = false;
       try {
         EtcdKeysResponse dirList = client.get().getDir(directory).dir().send().get();
 
@@ -391,6 +411,7 @@ public class WatchService {
               .build());
             return null;             
           });
+          inSync = true;
       } catch (EtcdException ee) {
         logger.debug("exception during sync", ee);
         currentIndex = Long.valueOf((long) ee.index.intValue());
@@ -442,6 +463,7 @@ public class WatchService {
     EtcdEventHandler<T> handler;
     String directory;
     String key;
+    volatile boolean inSync = false;
     volatile Long currentIndex = Long.valueOf(0L);
     volatile EtcdValue<T> currentValue = null;
 
@@ -462,9 +484,14 @@ public class WatchService {
       }
       return this;
     }
+    
+    public boolean inSync() {
+      return inSync;
+    }
 
     @Override
     public Watch sync() {
+      inSync = false;
       try {
         EtcdKeysResponse response = client.get().get(directory + "/" + key).send().get();
 
@@ -491,6 +518,7 @@ public class WatchService {
           else if( response.node.modifiedIndex == currentValue.modifiedIndex || currentValue.value.equals(value) ) {
             currentValue = new EtcdValue<T>(currentValue.value, currentValue.modifiedIndex, currentIndex);
           }
+          inSync = true;
         }
       } catch (EtcdException ee) {
         currentIndex = Long.valueOf((long) ee.index.intValue());
