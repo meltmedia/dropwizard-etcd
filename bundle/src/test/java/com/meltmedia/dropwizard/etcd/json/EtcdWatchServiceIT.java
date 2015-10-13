@@ -363,7 +363,29 @@ public class EtcdWatchServiceIT {
         .withPrevValue(new NodeData().withName("original")).build());
 
     watch.stop();
+  }
+  
+  @Test
+  public void startWatchOnLargeDirectory() {
+    WatchService service = serviceRule.getService();
 
+    @SuppressWarnings("unchecked")
+    EtcdEventHandler<NodeData> handler = mock(EtcdEventHandler.class);
+
+    EtcdDirectoryDao<NodeData> dirDao =
+      new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/dir", mapper,
+        NODE_DATA_TYPE);
+    
+    dirDao.resetDirectory();
+    
+    for( int i = 0; i < 1000; i++ ) {
+      dirDao.put("/key"+i, new NodeData().withName("name"+i));
+    }
+
+    Watch watch = service.registerDirectoryWatch("/dir", new TypeReference<NodeData>() {
+    }, handler);  
+    
+    watch.stop();
   }
 
   public static Thread startNodeDataThread(EtcdDirectoryDao<NodeData> dao, int count) {
