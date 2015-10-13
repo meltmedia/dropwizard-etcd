@@ -314,7 +314,7 @@ public class WatchService {
     TypeReference<T> type;
     EtcdEventHandler<T> handler;
     String directory;
-    volatile Long currentIndex;
+    volatile Long currentIndex = Long.valueOf(0L);
     Pattern keyMatcher;
     Map<String, EtcdValue<T>> state = Maps.newHashMap();
 
@@ -395,7 +395,7 @@ public class WatchService {
         logger.debug("exception during sync", ee);
         currentIndex = Long.valueOf((long) ee.index.intValue());
       } catch (IOException | TimeoutException e) {
-        logger.error(format("faled to start watch for directory %s", directory), e);
+        logger.error(format("failed to start watch for directory %s", directory), e);
       }
       return this;
     }
@@ -442,7 +442,7 @@ public class WatchService {
     EtcdEventHandler<T> handler;
     String directory;
     String key;
-    volatile Long currentIndex;
+    volatile Long currentIndex = Long.valueOf(0L);
     volatile EtcdValue<T> currentValue = null;
 
     protected ValueWatch(String directory, String key, TypeReference<T> type,
