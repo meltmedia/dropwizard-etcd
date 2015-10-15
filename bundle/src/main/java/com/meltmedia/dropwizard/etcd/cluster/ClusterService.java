@@ -22,6 +22,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson;
+import com.meltmedia.dropwizard.etcd.json.EtcdJson.EtcdDirectory;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
 import com.meltmedia.dropwizard.etcd.json.Heartbeat;
 
@@ -81,7 +82,10 @@ public class ClusterService {
     this.thisNode = thisNode;
     this.heartbeats = nodesDirectory.newHeartbeat("/" + thisNode.getId(), thisNode, 60);
     this.stateTracker =
-      ClusterStateTracker.builder().withDirectory(nodesDirectory).withThisNode(thisNode).build();
+      ClusterStateTracker.builder()
+        .withDirectory(nodesDirectory)
+        .withThisNode(thisNode)
+        .build();
     this.registry = registry;
   }
 
@@ -97,20 +101,26 @@ public class ClusterService {
 
   public <C> ProcessService<C> newProcessService(String directory,
     Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> configType) {
-    return newProcessService(factory.newDirectory(directory, new TypeReference<ClusterProcess>() {
-    }), lifecycleFactory, configType);
+    return newProcessService(factory.newDirectory(directory), lifecycleFactory, configType);
   }
 
-  public <C> ProcessService<C> newProcessService(MappedEtcdDirectory<ClusterProcess> directory,
+  public <C> ProcessService<C> newProcessService(EtcdDirectory directory,
     Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type) {
-    return ProcessService.<C> builder().withDirectory(directory)
-      .withLifecycleFactory(lifecycleFactory).withStateTracker(stateTracker).withExecutor(executor)
-      .withThisNode(thisNode).withType(type).withMapper(factory.getMapper()).withMetricRegistry(registry).build();
+    return ProcessService.<C> builder()
+      .withDirectory(directory)
+      .withLifecycleFactory(lifecycleFactory)
+      .withStateTracker(stateTracker)
+      .withExecutor(executor)
+      .withThisNode(thisNode)
+      .withType(type)
+      .withMapper(factory.getMapper())
+      .withMetricRegistry(registry)
+      .build();
   }
 
   public static class ProcessService<C> {
     public static class Builder<C> {
-      private MappedEtcdDirectory<ClusterProcess> directory;
+      private EtcdDirectory directory;
       private ClusterNode thisNode;
       private Function<C, ClusterProcessLifecycle> lifecycleFactory;
       private ClusterStateTracker stateTracker;
@@ -119,7 +129,7 @@ public class ClusterService {
       private ObjectMapper mapper;
       private MetricRegistry registry;
       
-      public Builder<C> withDirectory(MappedEtcdDirectory<ClusterProcess> directory) {
+      public Builder<C> withDirectory(EtcdDirectory directory) {
         this.directory = directory;
         return this;
       }
@@ -171,35 +181,66 @@ public class ClusterService {
     }
 
     private ClusterAssignmentService assignments;
+    private ClusterAssignmentTracker tracker;
+    private ProcessorStateTracker processorStateTracker;
     private ClusterProcessor<C> processor;
-    private MappedEtcdDirectory<ClusterProcess> directory;
+    private MappedEtcdDirectory<ClusterProcess> processDirectory;
+    private MappedEtcdDirectory<ProcessorNode> processorDirectory;
+    private ClusterNode thisNode;
 
-    public ProcessService(ClusterNode thisNode, ClusterStateTracker stateTracker,
-      ScheduledExecutorService executor, MappedEtcdDirectory<ClusterProcess> directory,
+    public ProcessService(ClusterNode thisNode, ClusterStateTracker stateTracker, ScheduledExecutorService executor, EtcdDirectory directory,
       Function<C, ClusterProcessLifecycle> lifecycleFactory, TypeReference<C> type,
       ObjectMapper mapper, MetricRegistry registry) {
+      this.thisNode = thisNode;
+      String dirName = directory.getName().replace('.', '_');
+      Function<String, String> metricName = name->MetricRegistry.name(ClusterAssignmentService.class, dirName, name);
+      this.processDirectory = directory.newDirectory("/processes", new TypeReference<ClusterProcess>(){});
+      this.processorDirectory = directory.newDirectory("/processors", new TypeReference<ProcessorNode>(){});
+      this.tracker = new ClusterAssignmentTracker(thisNode, processDirectory, registry, metricName);
+      this.processorStateTracker = ProcessorStateTracker.builder().withDirectory(processorDirectory).withThisNode(thisNode).build();
       this.assignments =
-        ClusterAssignmentService.builder().withExecutor(executor).withProcessDir(directory)
-          .withThisNode(thisNode).withClusterState(stateTracker).withMetricRegistry(registry).build();
-      this.processor =
-        ClusterProcessor.<C> builder().withLifecycleFactory(lifecycleFactory)
-          .withDirectory(directory).withType(type).withNodeId(thisNode.getId()).withMapper(mapper)
+        ClusterAssignmentService.builder()
+          .withExecutor(executor)
+          .withProcessDir(processDirectory)
+          .withProcessorState(processorStateTracker)
+          .withAssignmentState(tracker::getState)
+          .withThisNode(thisNode)
+          .withClusterState(stateTracker)
+          .withMetricRegistry(registry)
+          .withMetricName(metricName)
           .build();
-      this.directory = directory;
+      this.processor =
+        ClusterProcessor.<C> builder()
+          .withLifecycleFactory(lifecycleFactory)
+          .withDirectory(processDirectory)
+          .withType(type)
+          .withNodeId(thisNode.getId())
+          .withMapper(mapper)
+          .build();
     }
 
     public void start() {
-      processor.start();
-      assignments.start();
+      processorStateTracker.start(()->{
+        processor.start();
+        tracker.start();
+        assignments.start();
+      }).run();
     }
 
     public void stop() {
-      assignments.stop();
-      processor.stop();
+      processorStateTracker.stop(()->{
+        assignments.stop();
+        tracker.stop();
+        processor.stop();
+      }).run();
     }
 
     public MappedEtcdDirectory<ClusterProcess> getDirectory() {
-      return directory;
+      return processDirectory;
+    }
+
+    public String getId() {
+      return thisNode.getId();
     }
   }
 

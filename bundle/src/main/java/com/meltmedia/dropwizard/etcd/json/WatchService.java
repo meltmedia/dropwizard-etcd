@@ -15,7 +15,6 @@
  */
 package com.meltmedia.dropwizard.etcd.json;
 
-import static java.lang.Math.min;
 import static java.lang.String.format;
 
 import java.io.IOException;
@@ -31,11 +30,6 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import mousio.etcd4j.EtcdClient;
-import mousio.etcd4j.responses.EtcdException;
-import mousio.etcd4j.responses.EtcdKeysResponse;
-import mousio.etcd4j.responses.EtcdKeysResponse.EtcdNode;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +40,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.meltmedia.dropwizard.etcd.json.WatchService.Builder;
+
+import mousio.etcd4j.EtcdClient;
+import mousio.etcd4j.responses.EtcdException;
+import mousio.etcd4j.responses.EtcdKeysResponse;
+import mousio.etcd4j.responses.EtcdKeysResponse.EtcdNode;
 
 /**
  * A service for watching changes on Etcd with JSON content stored in the values.
@@ -262,37 +260,48 @@ public class WatchService {
     EtcdKeysResponse response, TypeReference<T> type) {
     T value = readValue(mapper, response.node, type);
     T prevValue = readValue(mapper, response.prevNode, type);
+    long etcdIndex = response.node.modifiedIndex;
     if (value == null && prevValue == null)
       return Optional.empty();
     switch (response.action) {
       case delete:
         return Optional.of(EtcdEvent.<T> builder().withType(EtcdEvent.Type.removed)
+          .withIndex(etcdIndex)
           .withValue(value).withPrevValue(prevValue)
-          .withKey(removeDirectory(directory, response.prevNode.key)).build());
+          .withKey(removeDirectory(directory, response.prevNode.key))
+          .build());
       case expire:
         return Optional.of(EtcdEvent.<T> builder().withType(EtcdEvent.Type.removed)
+          .withIndex(etcdIndex)
           .withValue(value).withPrevValue(prevValue)
-          .withKey(removeDirectory(directory, response.prevNode.key)).build());
+          .withKey(removeDirectory(directory, response.prevNode.key))
+          .build());
       case set:
         if (filterValueChange(value, prevValue)) {
           return Optional.of(EtcdEvent.<T> builder()
             .withType(prevValue == null ? EtcdEvent.Type.added : EtcdEvent.Type.updated)
+            .withIndex(etcdIndex)
             .withValue(value).withPrevValue(prevValue)
-            .withKey(removeDirectory(directory, response.node.key)).build());
+            .withKey(removeDirectory(directory, response.node.key))
+            .build());
         }
         break;
       case update:
         if (!value.equals(prevValue)) {
           return Optional.of(EtcdEvent.<T> builder().withType(EtcdEvent.Type.updated)
+            .withIndex(etcdIndex)
             .withValue(value).withPrevValue(prevValue)
-            .withKey(removeDirectory(directory, response.node.key)).build());
+            .withKey(removeDirectory(directory, response.node.key))
+            .build());
         }
         break;
       case compareAndSwap:
         if (!value.equals(prevValue)) {
           return Optional.of(EtcdEvent.<T> builder().withType(EtcdEvent.Type.updated)
+            .withIndex(etcdIndex)
             .withValue(value).withPrevValue(prevValue)
-            .withKey(removeDirectory(directory, response.node.key)).build());
+            .withKey(removeDirectory(directory, response.node.key))
+            .build());
         }
       default:
         break;
@@ -372,6 +381,7 @@ public class WatchService {
                     else if(entry == null) {
                       fireEvent(handler, EtcdEvent.<T> builder()
                         .withType(EtcdEvent.Type.added)
+                        .withIndex(node.modifiedIndex)
                         .withValue(value)
                         .withKey(key)
                         .build());
@@ -380,6 +390,7 @@ public class WatchService {
                     else if(value == null) {
                       fireEvent(handler, EtcdEvent.<T> builder()
                         .withType(EtcdEvent.Type.removed)
+                        .withIndex(node.modifiedIndex)
                         .withPrevValue(entry.value)
                         .withKey(key)
                         .build());
@@ -392,6 +403,7 @@ public class WatchService {
                     else {
                       fireEvent(handler, EtcdEvent.<T> builder()
                         .withType(EtcdEvent.Type.updated)
+                        .withIndex(node.modifiedIndex)
                         .withValue(value)
                         .withPrevValue(entry.value)
                         .withKey(key)
@@ -406,6 +418,7 @@ public class WatchService {
             
             fireEvent(handler, EtcdEvent.<T> builder()
               .withType(EtcdEvent.Type.removed)
+              .withIndex(currentIndex)
               .withPrevValue(entry.value)
               .withKey(key)
               .build());
@@ -413,8 +426,22 @@ public class WatchService {
           });
           inSync = true;
       } catch (EtcdException ee) {
-        logger.debug("exception during sync", ee);
         currentIndex = Long.valueOf((long) ee.index.intValue());
+        if( ee.errorCode == 100 ) {
+          state.replaceAll((key, entry)->{
+            fireEvent(handler, EtcdEvent.<T> builder()
+              .withType(EtcdEvent.Type.removed)
+              .withIndex(currentIndex)
+              .withPrevValue(entry.value)
+              .withKey(key)
+              .build());
+            return null;             
+          });
+          inSync = true;
+        }
+        else {
+          logger.debug("exception during sync", ee);
+        }
       } catch (IOException | TimeoutException e) {
         logger.error(format("failed to start watch for directory %s", directory), e);
       }
@@ -448,7 +475,7 @@ public class WatchService {
         currentIndex = responseIndex;
       } else {
         logger.debug("filtering event for {}", key(response));
-        logger.debug("reponses index {} current index {}", responseIndex, currentIndex);
+        logger.debug("response index {} current index {}", responseIndex, currentIndex);
       }
       return this;
     }
@@ -502,7 +529,7 @@ public class WatchService {
 
           if (value != null && currentValue == null) {
             fireEvent(handler,
-              EtcdEvent.<T> builder().withType(EtcdEvent.Type.added).withValue(value).withKey(key)
+              EtcdEvent.<T> builder().withType(EtcdEvent.Type.added).withValue(value).withKey(key).withIndex(response.node.modifiedIndex)
                 .build());
             currentValue = new EtcdValue<T>(value, response.node.modifiedIndex, currentIndex);
           }
@@ -510,6 +537,7 @@ public class WatchService {
             fireEvent(handler, EtcdEvent.<T>builder()
               .withType(EtcdEvent.Type.removed)
               .withPrevValue(currentValue.value)
+              .withIndex(response.node.modifiedIndex)
               .withKey(key)
               .build());
              currentValue = null;
@@ -521,7 +549,7 @@ public class WatchService {
           inSync = true;
         }
       } catch (EtcdException ee) {
-        currentIndex = Long.valueOf((long) ee.index.intValue());
+        currentIndex = ee.index;
       } catch (IOException | TimeoutException e) {
         logger.error(format("faled to start watch for directory %s", directory), e);
       }
@@ -543,8 +571,8 @@ public class WatchService {
       EtcdKeysResponse response = client.get().putDir(directory).isDir().send().get();
 
       lock.writeRunnable(()->{
-        syncIndex.set(response.etcdIndex);
-        etcdIndex.set(response.etcdIndex);
+        syncIndex.set(response.node.modifiedIndex);
+        etcdIndex.set(response.node.modifiedIndex);
       });
     } catch (EtcdException ee) {
       lock.writeRunnable(()->{

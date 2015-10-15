@@ -117,14 +117,17 @@ public class EtcdJson {
   public <T> MappedEtcdDirectory<T> newDirectory(String directory, TypeReference<T> type) {
     return new MappedEtcdDirectory<T>(directory, type);
   }
+  
+  public EtcdDirectory newDirectory( String directory ) {
+    return new EtcdDirectory(directory);
+  }
 
-  public class MappedEtcdDirectory<T> {
+  public class MappedEtcdDirectory<T> extends EtcdDirectory {
 
-    private String directory;
     private TypeReference<T> type;
 
     protected MappedEtcdDirectory(String directory, TypeReference<T> type) {
-      this.directory = directory;
+      super(directory);
       this.type = type;
     }
 
@@ -142,16 +145,37 @@ public class EtcdJson {
         .build();
     }
 
+    public EtcdDirectoryDao<T> newDao() {
+      return new EtcdDirectoryDao<T>(clientSupplier, baseDirectory + directory, mapper, type);
+    }
+  }
+  
+  public class EtcdDirectory {
+
+    protected String directory;
+
+    public EtcdDirectory( String directory ) {
+      this.directory = directory;
+    }
+    
     public <U> MappedEtcdDirectory<U> newDirectory(String directory, TypeReference<U> type) {
       return new MappedEtcdDirectory<U>(this.directory + directory, type);
     }
-
-    public EtcdDirectoryDao<T> newDao() {
-      return new EtcdDirectoryDao<T>(clientSupplier, baseDirectory + directory, mapper, type);
+    
+    public EtcdDirectory newDirectory(String directory) {
+      return new EtcdDirectory(this.directory + directory);
+    }
+    
+    public <U> MappedEtcdDirectory<U> map( TypeReference<U> type ) {
+      return new MappedEtcdDirectory<U>(this.directory, type);
     }
 
     public String getName() {
       return this.directory.replaceFirst(".*?([^/]*)\\Z", "$1");
+    }
+    
+    public String getPath() {
+      return this.directory;
     }
   }
 

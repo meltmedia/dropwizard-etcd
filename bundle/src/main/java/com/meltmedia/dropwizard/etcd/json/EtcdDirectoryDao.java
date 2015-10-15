@@ -20,13 +20,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import mousio.etcd4j.EtcdClient;
-import mousio.etcd4j.responses.EtcdException;
-import mousio.etcd4j.responses.EtcdKeysResponse;
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import mousio.etcd4j.EtcdClient;
+import mousio.etcd4j.responses.EtcdException;
+import mousio.etcd4j.responses.EtcdKeysResponse;
 
 /**
  * A dao for Etcd directories where all values in the directory are of a common type.
@@ -60,7 +60,7 @@ public class EtcdDirectoryDao<T> {
   public Long put(String key, T entry) {
     try {
       return clientSupplier.get().put(directory + "/" + key, mapper.writeValueAsString(entry))
-        .send().get().etcdIndex;
+        .send().get().node.modifiedIndex;
     } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to put key %s", key), e);
     }
@@ -195,7 +195,7 @@ public class EtcdDirectoryDao<T> {
    */
   public Long putDir(String key) {
     try {
-      return clientSupplier.get().putDir(directory + key).send().get().etcdIndex;
+      return clientSupplier.get().putDir(directory + key).send().get().node.modifiedIndex;
     } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to put directory key %s", key), e);
     }
@@ -234,7 +234,7 @@ public class EtcdDirectoryDao<T> {
   public Long put(String key, T value, T previousValue) {
     try {
       return clientSupplier.get().put(directory + "/" + key, mapper.writeValueAsString(value))
-        .prevValue(mapper.writeValueAsString(previousValue)).send().get().etcdIndex;
+        .prevValue(mapper.writeValueAsString(previousValue)).send().get().node.modifiedIndex;
     } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("failed to put key %s with previous value",
         key), e);

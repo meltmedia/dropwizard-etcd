@@ -18,13 +18,12 @@ package com.meltmedia.dropwizard.etcd.cluster;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
-import com.google.common.collect.Maps;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Maps;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
 import com.meltmedia.dropwizard.etcd.json.EtcdJson.MappedEtcdDirectory;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
