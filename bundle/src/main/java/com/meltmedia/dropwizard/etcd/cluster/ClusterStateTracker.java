@@ -75,13 +75,13 @@ public class ClusterStateTracker {
   public void handle(EtcdEvent<ClusterNode> event) {
     switch (event.getType()) {
       case added:
-        state = state.addMember(event.getValue());
+        state = state.addMember(event.getIndex(), event.getValue());
         break;
       case removed:
-        state = state.removeMember(event.getPrevValue());
+        state = state.removeMember(event.getIndex(), event.getPrevValue());
         break;
       case updated:
-        state = state.removeMember(event.getPrevValue()).addMember(event.getValue());
+        state = state.removeMember(event.getIndex(), event.getPrevValue()).addMember(event.getIndex(), event.getValue());
         break;
     }
   }
@@ -92,12 +92,18 @@ public class ClusterStateTracker {
       .compound((n1, n2) -> Objects.compare(n1.getId(), n2.getId(), Ordering.natural()));
 
     public static State empty() {
-      return new State(Sets.newTreeSet(COMPARATOR));
+      return new State(0, Collections.emptySortedSet());
+    }
+    
+    public static State empty( long lastModifiedIndex ) {
+      return new State(lastModifiedIndex, Collections.emptySortedSet());
     }
 
     private SortedSet<ClusterNode> members;
+    private final long lastModifiedIndex;
 
-    private State(SortedSet<ClusterNode> members) {
+    private State(long lastModifiedIndex, SortedSet<ClusterNode> members) {
+      this.lastModifiedIndex = lastModifiedIndex;
       this.members = members;
     }
 
@@ -105,12 +111,12 @@ public class ClusterStateTracker {
       return members.isEmpty() ? null : members.first();
     }
 
-    public State addMember(ClusterNode newMember) {
-      return new State(newMembers(newMember, SortedSet::add));
+    public State addMember(long lastModifiedIndex, ClusterNode newMember) {
+      return new State(lastModifiedIndex, newMembers(newMember, SortedSet::add));
     }
 
-    public State removeMember(ClusterNode oldMember) {
-      return new State(newMembers(oldMember, SortedSet::remove));
+    public State removeMember(long lastModfiedIndex, ClusterNode oldMember) {
+      return new State(lastModifiedIndex, newMembers(oldMember, SortedSet::remove));
     }
 
     private SortedSet<ClusterNode> newMembers(ClusterNode changingMember,
@@ -123,6 +129,10 @@ public class ClusterStateTracker {
 
     public int memberCount() {
       return members.size();
+    }
+    
+    public long lastModifiedIndex() {
+      return lastModifiedIndex;
     }
 
     public SortedSet<ClusterNode> getMembers() {

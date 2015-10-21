@@ -15,6 +15,15 @@
  */
 package com.meltmedia.dropwizard.etcd.json;
 
+import static com.meltmedia.dropwizard.etcd.json.EtcdMatchers.atAnyIndex;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -28,18 +37,9 @@ import org.junit.Test;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.meltmedia.dropwizard.etcd.json.EtcdDirectoryDao;
-import com.meltmedia.dropwizard.etcd.json.EtcdEvent;
-import com.meltmedia.dropwizard.etcd.json.EtcdEventHandler;
-import com.meltmedia.dropwizard.etcd.json.WatchService;
 import com.meltmedia.dropwizard.etcd.json.EtcdEvent.Type;
 import com.meltmedia.dropwizard.etcd.json.WatchService.Watch;
 import com.meltmedia.dropwizard.etcd.junit.EtcdClientRule;
-
-import static org.mockito.Mockito.*;
-import static com.meltmedia.dropwizard.etcd.json.EtcdMatchers.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.MatcherAssert.*;
 
 public class EtcdWatchServiceIT {
   public static final String BASE_PATH = "/talu-twitter-streams/it";
@@ -307,7 +307,6 @@ public class EtcdWatchServiceIT {
     }
   }
   
-  @SuppressWarnings("unchecked")
   @Test
   public void shouldWatchSingleFileWithNoiseAndTimeout() throws InterruptedException {
     int eventsCount = 100;
@@ -348,21 +347,32 @@ public class EtcdWatchServiceIT {
     EtcdDirectoryDao<NodeData> dirDao =
       new EtcdDirectoryDao<NodeData>(clientRule::getClient, BASE_PATH + "/dir", mapper,
         NODE_DATA_TYPE);
+    
+    dirDao.resetDirectory();
 
     Watch watch = service.registerDirectoryWatch("/dir", new TypeReference<NodeData>() {
     }, handler);
 
-    dirDao.put("id", new NodeData().withName("original"));
-
-    dirDao.update("id", n -> "original".equals(n.getName()), n -> n.withName("updated"));
+    long originalIndex = dirDao.put("id", new NodeData().withName("original"));
 
     verify(handler, timeout(1000)).handle(
-      EtcdEvent.<NodeData> builder().withKey("id").withType(Type.added)
-        .withValue(new NodeData().withName("original")).build());
+      EtcdEvent.<NodeData> builder()
+        .withKey("id")
+        .withType(Type.added)
+        .withValue(new NodeData().withName("original"))
+        .withIndex(originalIndex)
+        .build());
+    
+    long updateIndex = dirDao.update("id", n -> "original".equals(n.getName()), n -> n.withName("updated"));
+
     verify(handler, timeout(1000)).handle(
-      EtcdEvent.<NodeData> builder().withKey("id").withType(Type.updated)
+      EtcdEvent.<NodeData> builder()
+        .withKey("id")
+        .withType(Type.updated)
         .withValue(new NodeData().withName("updated"))
-        .withPrevValue(new NodeData().withName("original")).build());
+        .withPrevValue(new NodeData().withName("original"))
+        .withIndex(updateIndex)
+        .build());
 
     watch.stop();
   }
