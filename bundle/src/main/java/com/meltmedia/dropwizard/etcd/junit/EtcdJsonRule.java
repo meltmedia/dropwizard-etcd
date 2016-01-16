@@ -38,7 +38,11 @@ public class EtcdJsonRule implements TestRule {
 
   public EtcdJsonRule(Supplier<EtcdClient> clientSupplier, String directory) {
     this.clientSupplier = clientSupplier;
-    this.directory = directory;
+    this.directory = ensureLeadingSlash(directory);
+  }
+  
+  private static String ensureLeadingSlash( String directory ) {
+    return directory.startsWith("/") ? directory : "/"+directory;
   }
 
   @Override
