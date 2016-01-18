@@ -79,6 +79,7 @@ public class EtcdWatchServiceRule implements TestRule {
           throw e;
         } finally {
           executor.shutdown();
+          executor.awaitTermination(1L, TimeUnit.MINUTES);
         }
 
       }

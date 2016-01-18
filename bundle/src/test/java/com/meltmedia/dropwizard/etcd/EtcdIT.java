@@ -23,6 +23,7 @@ import java.net.URI;
 import java.util.concurrent.TimeoutException;
 
 import mousio.etcd4j.EtcdClient;
+import mousio.etcd4j.responses.EtcdAuthenticationException;
 import mousio.etcd4j.responses.EtcdException;
 
 import org.junit.After;
@@ -39,10 +40,11 @@ public class EtcdIT {
 
   @After
   public void tearDown() throws Exception {
+    client.close();
   }
 
   @Test
-  public void testRoundTripKey() throws IOException, EtcdException, TimeoutException {
+  public void testRoundTripKey() throws IOException, EtcdException, TimeoutException, EtcdAuthenticationException {
     client.put("/collectors/1", "{id: 1}").send();
     assertThat(client.get("/collectors/1").send().get().node.value, equalTo("{id: 1}"));
   }

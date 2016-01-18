@@ -83,7 +83,7 @@ public class EtcdBundle<C extends Configuration> implements ConfiguredBundle<C> 
           .setHostName(bundleConfig.getHostName())
           .setMaxFrameSize(bundleConfig.getMaxFrameSize());
         client =
-          new EtcdClient(new EtcdNettyClient(config, null, bundleConfig.getUrls().toArray(
+          new EtcdClient(new EtcdNettyClient(config, bundleConfig.getUrls().toArray(
             new URI[] {})));
         log.info("connected to etcd, version {}", client.getVersion());
       }
