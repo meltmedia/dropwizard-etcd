@@ -18,6 +18,7 @@ package com.meltmedia.dropwizard.etcd.junit;
 import java.io.IOException;
 import java.net.URI;
 
+import mousio.client.retry.RetryWithTimeout;
 import mousio.etcd4j.EtcdClient;
 import mousio.etcd4j.transport.EtcdNettyClient;
 import mousio.etcd4j.transport.EtcdNettyConfig;
@@ -47,10 +48,13 @@ public class EtcdClientRule implements TestRule {
       @Override
       public void evaluate() throws Throwable {
         URI serverUri = URI.create(uri);
-        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(serverUri.getHost()).setMaxFrameSize(maxFrameSize);
+        EtcdNettyConfig config = new EtcdNettyConfig()
+            .setHostName(serverUri.getHost())
+            .setMaxFrameSize(maxFrameSize)
+            .setConnectTimeout(5);
 
-        client = new EtcdClient(new EtcdNettyClient(config, null, new URI[] { serverUri }));
-
+        client = new EtcdClient(new EtcdNettyClient(config, new URI[] { serverUri }));
+        client.setRetryHandler(new RetryWithTimeout(2000, 20000));
         try {
           base.evaluate();
         } finally {

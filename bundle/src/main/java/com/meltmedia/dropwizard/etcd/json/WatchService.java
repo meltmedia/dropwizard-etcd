@@ -42,6 +42,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import mousio.etcd4j.EtcdClient;
+import mousio.etcd4j.responses.EtcdAuthenticationException;
 import mousio.etcd4j.responses.EtcdException;
 import mousio.etcd4j.responses.EtcdKeysResponse;
 import mousio.etcd4j.responses.EtcdKeysResponse.EtcdNode;
@@ -442,7 +443,7 @@ public class WatchService {
         else {
           logger.debug("exception during sync", ee);
         }
-      } catch (IOException | TimeoutException e) {
+      } catch (IOException | TimeoutException | EtcdAuthenticationException e) {
         logger.error(format("failed to start watch for directory %s", directory), e);
       }
       return this;
@@ -550,7 +551,7 @@ public class WatchService {
         }
       } catch (EtcdException ee) {
         currentIndex = ee.index;
-      } catch (IOException | TimeoutException e) {
+      } catch (IOException | TimeoutException | EtcdAuthenticationException e) {
         logger.error(format("faled to start watch for directory %s", directory), e);
       }
       return this;

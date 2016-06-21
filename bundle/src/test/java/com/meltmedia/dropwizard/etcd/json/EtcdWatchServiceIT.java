@@ -112,7 +112,7 @@ public class EtcdWatchServiceIT {
 
   @Test
   public void shouldWatchMultipleDirectories() throws InterruptedException {
-    int dir1Count = 1000;
+    int dir1Count = 2000;
     int dir2Count = 500;
     int dir3Count = 750;
 
@@ -407,6 +407,11 @@ public class EtcdWatchServiceIT {
     Thread events = new Thread(() -> {
       for (int i = 0; i < count; i++) {
         dao.put(String.valueOf(i), new NodeData().withName(String.valueOf(i)));
+        try {
+          TimeUnit.MILLISECONDS.sleep(10l);
+        } catch (Exception e) {
+          Thread.currentThread().interrupt();
+        }
       }
     });
     events.start();
