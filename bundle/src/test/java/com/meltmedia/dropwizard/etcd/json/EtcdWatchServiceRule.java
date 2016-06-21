@@ -28,6 +28,7 @@ import org.junit.runners.model.Statement;
 
 import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.meltmedia.dropwizard.etcd.json.WatchService;
 
 public class EtcdWatchServiceRule implements TestRule {
@@ -59,7 +60,7 @@ public class EtcdWatchServiceRule implements TestRule {
 
           service =
             WatchService.builder().withEtcdClient(clientSupplier).withDirectory(directory)
-              .withExecutor(executor).withMapper(mapper).withMetricRegistry(new MetricRegistry()).withWatchTimeout(10, TimeUnit.MILLISECONDS).build();
+              .withExecutor(executor).withMapper(mapper).withMetricRegistry(new MetricRegistry()).withWatchTimeout(10, TimeUnit.SECONDS).build();
 
           service.start();
 

@@ -48,11 +48,13 @@ public class EtcdClientRule implements TestRule {
       @Override
       public void evaluate() throws Throwable {
         URI serverUri = URI.create(uri);
-        EtcdNettyConfig config = new EtcdNettyConfig().setHostName(serverUri.getHost()).setMaxFrameSize(maxFrameSize);
+        EtcdNettyConfig config = new EtcdNettyConfig()
+            .setHostName(serverUri.getHost())
+            .setMaxFrameSize(maxFrameSize)
+            .setConnectTimeout(5);
 
         client = new EtcdClient(new EtcdNettyClient(config, new URI[] { serverUri }));
-        client.setRetryHandler(new RetryWithTimeout(200, 20000));
-
+        client.setRetryHandler(new RetryWithTimeout(2000, 20000));
         try {
           base.evaluate();
         } finally {
