@@ -45,42 +45,50 @@ public class ClusterAssignmentTracker {
     
     public AssignmentState addProcess(long etcdIndex, String key, ClusterProcess process) {
       Optional<String> assignedTo = assignedToKey(process);
-      int totalProcessCount = this.totalProcessCount + 1;
-      int nodeProcessCount = this.nodeProcessCount + assignedTo.filter(node.getId()::equals).map(s->1).orElse(0);
-      int unassignedProcessCount = this.unassignedProcessCount + assignedTo.map(s->0).orElse(1);
       Map<String, Set<String>> processes = Maps.newHashMap(this.processes);
       Set<String> unassigned = Sets.newHashSet(this.unassigned);
       if( assignedTo.isPresent() ) {
         processes.computeIfPresent(assignedTo.get(), (k, v) -> {
           Set<String> ids = Sets.newHashSet(v);
           ids.add(key);
-          return ids.isEmpty() ? null : ids;
+          return ids.isEmpty() ? null : Collections.unmodifiableSet(ids);
         });
         processes.computeIfAbsent(assignedTo.get(), k->Sets.newHashSet(key));
       }
       else {
         unassigned.add(key);
       }
+      int totalProcessCount = 
+        unassigned.size() +
+        processes.entrySet().stream()
+          .mapToInt(e->e.getValue().size())
+          .sum();
+      int nodeProcessCount = 
+        processes.getOrDefault(node.getId(), Collections.EMPTY_SET)
+        .size();
+      int unassignedProcessCount = unassigned.size();
       return new AssignmentState(node, etcdIndex, processes, unassigned, totalProcessCount, nodeProcessCount, unassignedProcessCount );
     }
     
     public AssignmentState removeProcess( long etcdIndex, String key, ClusterProcess process ) {
       Optional<String> assignedTo = assignedToKey(process);
-      int totalProcessCount = this.totalProcessCount - 1;
-      int nodeProcessCount = this.nodeProcessCount - assignedTo.filter(node.getId()::equals).map(s->1).orElse(0);
-      int unassignedProcessCount = this.unassignedProcessCount - assignedTo.map(s->0).orElse(1);
       Map<String, Set<String>> processes = Maps.newHashMap(this.processes);
       Set<String> unassigned = Sets.newHashSet(this.unassigned);
       if( assignedTo.isPresent() ) {
         processes.computeIfPresent(assignedTo.get(), (k, v) -> {
           Set<String> ids = Sets.newHashSet(v);
           ids.remove(key);
-          return ids.isEmpty() ? null : ids;
+          return ids.isEmpty() ? null : Collections.unmodifiableSet(ids);
         });
       }
       else {
         unassigned.remove(key);
       }
+      int totalProcessCount = unassigned.size() + processes.entrySet().stream().mapToInt(e->e.getValue().size()).sum();
+      int nodeProcessCount = 
+        processes.getOrDefault(node.getId(), Collections.EMPTY_SET)
+        .size();
+      int unassignedProcessCount = unassigned.size();
       return new AssignmentState(node, etcdIndex, processes, unassigned, totalProcessCount, nodeProcessCount, unassignedProcessCount );
     }
 
