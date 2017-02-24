@@ -569,17 +569,22 @@ public class WatchService {
 
   protected void ensureDirectoryExists() {
     try {
-      EtcdKeysResponse response = client.get().putDir(directory).isDir().send().get();
+      logger.debug("attempting to put directory {}", directory);
+      EtcdKeysResponse response = client.get().putDir(directory).prevExist(false).send().get();
+      logger.debug("put directory {} successful", directory);
 
       lock.writeRunnable(()->{
         syncIndex.set(response.node.modifiedIndex);
         etcdIndex.set(response.node.modifiedIndex);
       });
+      logger.debug("directory {} index recorded", directory);
     } catch (EtcdException ee) {
+      logger.debug("put directory {} failed, it exists", directory);
       lock.writeRunnable(()->{
         syncIndex.set(ee.index);
         etcdIndex.set(ee.index);
       });
+      logger.debug("directory {} index recorded", directory);
     } catch (Exception e) {
       throw new EtcdDirectoryException(String.format("could not create directory %s", directory), e);
     }
